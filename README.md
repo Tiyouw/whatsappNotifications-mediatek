@@ -48,7 +48,7 @@ npm install
 
 | No | Nama Task | Deadline | Target | H-Notif | Catatan | Status |
 |---|---|---|---|---|---|---|
-| 1 | Laporan Bulanan | 2025-01-31 | 628123456789 | 7,3,1,0 | Kirim ke atasan | active |
+| 1 | Laporan Bulanan | 2025-01-31 | 628xxxxxxxxxx | 7,3,1,0 | Kirim ke atasan | active |
 | 2 | Bayar Tagihan | 2025-01-20 | | 3,1,0 | | active |
 | 3 | Meeting Tim | 2025-02-05 | 120363xxx@g.us | 1,0 | Siapkan presentasi | active |
 
@@ -65,18 +65,18 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-SPREADSHEET_ID=1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms
+SPREADSHEET_ID=your_spreadsheet_id_here
 GOOGLE_CREDENTIALS_PATH=./credentials.json
 SHEET_REMINDER_TAB=Reminders
 
-OWNER_NUMBER=628123456789
+OWNER_NUMBER=628xxxxxxxxxx
 
 REMINDER_CRON=0 8 * * *
 NOTIFY_DAYS_BEFORE=7,3,1,0
 ```
 
 > **Cara dapat SPREADSHEET_ID:** Lihat URL spreadsheet kamu:
-> `https://docs.google.com/spreadsheets/d/`**`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms`**`/edit`
+> `https://docs.google.com/spreadsheets/d/`**`YOUR_SPREADSHEET_ID`**`/edit`
 
 ### 4. Jalankan Bot
 
@@ -107,7 +107,7 @@ Setelah scan, bot akan aktif dan kamu menerima pesan konfirmasi.
 
 ### Contoh `!tambah`:
 ```
-!tambah Laporan Q1 | 2025-03-31 | 628987654321 | 7,3,1,0 | Kirim ke email direktur
+!tambah Laporan Q1 | 2025-03-31 | 628xxxxxxxxxx | 7,3,1,0 | Kirim ke email direktur
 ```
 
 ---
@@ -121,7 +121,7 @@ Untuk kirim ke grup, kamu butuh JID grup (format: `120363xxx@g.us`).
 2. Kirim sembarang pesan ke grup dari nomor personal kamu (bukan nomor bot)
 3. Cek log terminal bot — akan tampil JID grup:
    ```
-   📥 Incoming message from 120363987654321@g.us
+   📥 Incoming message from 120363xxx@g.us
    ```
 4. Gunakan JID itu di kolom Target di Sheet
 
@@ -207,9 +207,9 @@ Kalau kamu ingin user di `ALLOWED_NUMBERS` boleh kirim `!done`, tapi status *bar
 DONE_REQUIRE_OWNER_APPROVAL=true
 DONE_APPROVAL_TTL_MS=900000
 SHEET_OVERRIDE_TAB=BotOverrides
-APPROVER_NUMBERS=OWNER_NUMBER,6281272030618,6285230777753
+APPROVER_NUMBERS=OWNER_NUMBER,62xxxxxxxxxx,62yyyyyyyyyy
 APPROVER_LABEL=Abang
-NUMBER_NAME_MAP=6281272030618=Ahmad,6285230777753=Almas,6282132341102=Ahimsa
+NUMBER_NAME_MAP=62xxxxxxxxxx=Ahmad,62yyyyyyyyyy=Almas,62zzzzzzzzzz=Ahimsa
 ```
 
 Catatan kolom sheet:
