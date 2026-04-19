@@ -40,17 +40,17 @@ npm install
    → Berikan akses **Editor**
 4. Buat header di baris pertama:
 
-| A | B | C | D | E | F | G |
-|---|---|---|---|---|---|---|
-| No | Nama Task | Deadline | Target | H-Notif | Catatan | Status |
+| A | B | C | D | E | F | G | H |
+|---|---|---|---|---|---|---|---|
+| No | Nama Task | Deadline | Target | H-Notif | Catatan | Status | Approval |
 
 **C. Contoh data Sheet:**
 
-| No | Nama Task | Deadline | Target | H-Notif | Catatan | Status |
-|---|---|---|---|---|---|---|
-| 1 | Laporan Bulanan | 2025-01-31 | 628xxxxxxxxxx | 7,3,1,0 | Kirim ke atasan | active |
-| 2 | Bayar Tagihan | 2025-01-20 | | 3,1,0 | | active |
-| 3 | Meeting Tim | 2025-02-05 | 120363xxx@g.us | 1,0 | Siapkan presentasi | active |
+| No | Nama Task | Deadline | Target | H-Notif | Catatan | Status | Approval |
+|---|---|---|---|---|---|---|---|
+| 1 | Laporan Bulanan | 2025-01-31 | 628xxxxxxxxxx | 7,3,1,0 | Kirim ke atasan | active | |
+| 2 | Bayar Tagihan | 2025-01-20 | | 3,1,0 | | active | |
+| 3 | Meeting Tim | 2025-02-05 | 120363xxx@g.us | 1,0 | Siapkan presentasi | active | |
 
 - **Target kosong** = kirim ke OWNER_NUMBER (kamu sendiri)
 - **Target nomor** = kirim ke nomor HP (628xxx)
