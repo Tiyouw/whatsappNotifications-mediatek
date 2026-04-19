@@ -372,7 +372,11 @@ async function handleCommand(sock, msg) {
         })
 
         const contextLabel = isFromGroup(msg) ? 'Grup Ini' : (argStr ? `Filter: ${argStr}` : 'Semua')
-        const fullText = `📋 *Reminder Aktif — ${contextLabel}*\n\n${lines.join('\n\n')}\n\n_🔒 = tidak bisa !done (auto-import)_`
+        const lockHint = `_🔒 = auto-import (edit/hapus dibatasi; !done tetap bisa)_`
+        const approvalHint = requireOwnerApproval() && !isApprover(fromJid)
+          ? `\n_!done butuh approval ${approverLabel()}_`
+          : ''
+        const fullText = `📋 *Reminder Aktif — ${contextLabel}*\n\n${lines.join('\n\n')}\n\n${lockHint}${approvalHint}`
         await reply(sock, senderJid, msg, fullText, [...new Set(allMentions)])
         break
       }
