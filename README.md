@@ -35,10 +35,15 @@ npm install
 
 **B. Buat Google Sheet**
 1. Buat spreadsheet baru di Google Sheets
-2. Rename tab pertama menjadi `Reminders`
-3. **Share spreadsheet** ke email service account (ada di file credentials.json, field `client_email`)
+2. Buat **2 tab**:
+   - `Reminders` → data utama (bisa auto-import dari tim humas / sumber lain)
+   - `MyReminders` → data yang dibuat/diubah oleh bot (hasil `!tambah`, `!edit`, `!hapus`)
+3. Pastikan bot pakai tab yang benar via `.env`:
+   - `SHEET_REMINDER_TAB=Reminders`
+   - `SHEET_MANUAL_TAB=MyReminders`
+4. **Share spreadsheet** ke email service account (ada di file credentials.json, field `client_email`)
    → Berikan akses **Editor**
-4. Buat header di baris pertama:
+5. Buat header di baris pertama (di kedua tab `Reminders` dan `MyReminders`):
 
 | A | B | C | D | E | F | G | H |
 |---|---|---|---|---|---|---|---|
@@ -68,6 +73,7 @@ Edit `.env`:
 SPREADSHEET_ID=your_spreadsheet_id_here
 GOOGLE_CREDENTIALS_PATH=./credentials.json
 SHEET_REMINDER_TAB=Reminders
+SHEET_MANUAL_TAB=MyReminders
 
 OWNER_NUMBER=628xxxxxxxxxx
 
@@ -109,6 +115,9 @@ Setelah scan, bot akan aktif dan kamu menerima pesan konfirmasi.
 ```
 !tambah Laporan Q1 | 2025-03-31 | 628xxxxxxxxxx | 7,3,1,0 | Kirim ke email direktur
 ```
+
+Catatan:
+- `!tambah` selalu menambah data ke tab `MyReminders` (bukan `Reminders`), jadi tidak mengganggu data auto-import.
 
 ---
 
