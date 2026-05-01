@@ -1,245 +1,309 @@
-# 🤖 WA Reminder Bot
+# 🤖 Reo'sBot — WhatsApp Reminder Bot
 
-Bot WhatsApp personal untuk reminder deadline dari Google Sheets, menggunakan Baileys.
-
----
-
-## 📋 Fitur
-
-- ✅ Reminder otomatis dari Google Sheets setiap hari (jam 08:00 WIB)
-- ✅ Kirim ke nomor personal atau grup WhatsApp
-- ✅ Notifikasi di H-7, H-3, H-1, dan H-0 (konfigurasi per task)
-- ✅ Weekly summary setiap Senin pagi
-- ✅ Command via WhatsApp: `!cek`, `!done`, `!tambah`, dll
-- ✅ Auto-reconnect jika koneksi terputus
+Bot WhatsApp personal untuk reminder deadline dari Google Sheets, sticker converter, dan manajemen task via chat.
 
 ---
 
-## 🚀 Setup
+## 📦 Tech Stack
 
-### 1. Install Dependencies
+| Library | Fungsi |
+|---|---|
+| `@whiskeysockets/baileys` | WhatsApp Web API |
+| `googleapis` | Google Sheets read/write |
+| `node-cron` | Scheduler otomatis |
+| `sharp` | Convert gambar → sticker WebP |
+| `fluent-ffmpeg` | Convert video → animated sticker WebP |
+| `dayjs` | Date parsing & formatting |
+| `qrcode-terminal` | Tampilkan QR scan di terminal |
+| `dotenv` | Konfigurasi environment |
 
+---
+
+## 🚀 Setup Awal
+
+### 1. Install Node.js
+Download **Node.js LTS** di [nodejs.org](https://nodejs.org). Minimal versi 18.
+
+### 2. Install ffmpeg
+Download di [ffmpeg.org](https://ffmpeg.org/download.html) lalu tambahkan ke PATH.
+Cek: `ffmpeg -version`
+
+### 3. Install dependencies
 ```bash
 npm install
 ```
 
-### 2. Setup Google Sheets API
+### 4. Setup Google Sheets API
 
-**A. Buat Google Cloud Project**
+**A. Google Cloud Project**
 1. Buka [console.cloud.google.com](https://console.cloud.google.com)
 2. Buat project baru → Enable **Google Sheets API**
-3. Buka **Credentials** → **Create Credentials** → **Service Account**
-4. Beri nama (contoh: `reminder-bot`), klik Create
-5. Di halaman Service Account → **Keys** → **Add Key** → **JSON**
-6. Download file JSON → rename ke `credentials.json` → taruh di folder project
+3. **Credentials** → **Create Credentials** → **Service Account**
+4. Di service account → tab **Keys** → **Add Key** → **JSON**
+5. Download → rename jadi `credentials.json` → taruh di root folder project
 
 **B. Buat Google Sheet**
-1. Buat spreadsheet baru di Google Sheets
-2. Buat **2 tab**:
-   - `Reminders` → data utama (bisa auto-import dari tim humas / sumber lain)
-   - `MyReminders` → data yang dibuat/diubah oleh bot (hasil `!tambah`, `!edit`, `!hapus`)
-3. Pastikan bot pakai tab yang benar via `.env`:
-   - `SHEET_REMINDER_TAB=Reminders`
-   - `SHEET_MANUAL_TAB=MyReminders`
-4. **Share spreadsheet** ke email service account (ada di file credentials.json, field `client_email`)
-   → Berikan akses **Editor**
-5. Buat header di baris pertama (di kedua tab `Reminders` dan `MyReminders`):
 
-| A | B | C | D | E | F | G | H |
-|---|---|---|---|---|---|---|---|
-| No | Nama Task | Deadline | Target | H-Notif | Catatan | Status | Approval |
+Buat 2 tab di spreadsheet:
 
-**C. Contoh data Sheet:**
+**Tab `Reminders`** ← ImportRange dari sheet HUMAS (read-only, tidak bisa !done/!edit/!hapus)
 
-| No | Nama Task | Deadline | Target | H-Notif | Catatan | Status | Approval |
-|---|---|---|---|---|---|---|---|
-| 1 | Laporan Bulanan | 2025-01-31 | 628xxxxxxxxxx | 7,3,1,0 | Kirim ke atasan | active | |
-| 2 | Bayar Tagihan | 2025-01-20 | | 3,1,0 | | active | |
-| 3 | Meeting Tim | 2025-02-05 | 120363xxx@g.us | 1,0 | Siapkan presentasi | active | |
+**Tab `MyReminders`** ← Ditulis bot via `!tambah`
 
-- **Target kosong** = kirim ke OWNER_NUMBER (kamu sendiri)
-- **Target nomor** = kirim ke nomor HP (628xxx)
-- **Target @g.us** = kirim ke grup (cara dapat JID grup: lihat langkah di bawah)
+Header kedua tab harus sama persis (baris 1):
 
-### 3. Konfigurasi .env
+| A | B | C | D | E | F | G |
+|---|---|---|---|---|---|---|
+| No | Nama Task | Deadline | Target | H-Notif | Catatan | Status |
 
+**C. Share spreadsheet ke service account**
+- Buka file `credentials.json` → cari field `client_email`
+- Share spreadsheet ke email tersebut dengan akses **Editor**
+
+**D. Ambil Spreadsheet ID**
+```
+https://docs.google.com/spreadsheets/d/[SPREADSHEET_ID]/edit
+```
+
+### 5. Konfigurasi `.env`
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
-
+Isi file `.env`:
 ```env
+# Google Sheets
 SPREADSHEET_ID=your_spreadsheet_id_here
 GOOGLE_CREDENTIALS_PATH=./credentials.json
 SHEET_REMINDER_TAB=Reminders
 SHEET_MANUAL_TAB=MyReminders
 
+# WhatsApp
 OWNER_NUMBER=628xxxxxxxxxx
 
+# Nomor yang boleh akses bot (pisah koma, termasuk OWNER_NUMBER)
+ALLOWED_NUMBERS=628xxxxxxxxxx,628nomorteman1,628nomorteman2
+
+# Default target jika kolom Target di Sheet kosong
+DEFAULT_GROUP_JID=120363xxxxxxxxxx@g.us
+
+# Scheduler (cron expression, timezone Asia/Jakarta)
 REMINDER_CRON=0 8 * * *
+
+# H- berapa hari sebelum deadline default (jika kolom H-Notif kosong)
 NOTIFY_DAYS_BEFORE=7,3,1,0
 ```
 
-> **Cara dapat SPREADSHEET_ID:** Lihat URL spreadsheet kamu:
-> `https://docs.google.com/spreadsheets/d/`**`YOUR_SPREADSHEET_ID`**`/edit`
-
-### 4. Jalankan Bot
-
+### 6. Jalankan Bot
 ```bash
-npm start
+npm start        # production
+npm run dev      # development (auto-restart saat file berubah)
 ```
 
-Pertama kali jalan, akan muncul QR code di terminal. Scan dengan nomor kedua kamu:
-- WhatsApp → **Linked Devices** → **Link a Device** → Scan QR
-
-Setelah scan, bot akan aktif dan kamu menerima pesan konfirmasi.
+Scan QR yang muncul di terminal dengan WhatsApp nomor kedua:
+**WhatsApp → Linked Devices → Link a Device**
 
 ---
 
 ## 📱 Commands
 
-| Command | Fungsi |
+### Reminder
+
+| Command | Deskripsi |
 |---|---|
-| `!help` | Tampilkan daftar perintah |
-| `!cek` | Lihat semua reminder aktif |
-| `!hari` | Lihat reminder yang due hari ini |
-| `!kirim` | Trigger kirim reminder sekarang |
+| `!cek` | Tampilkan reminder aktif sesuai konteks (grup/pribadi) |
+| `!cek semua` | Tampilkan semua reminder (hanya dari chat pribadi) |
+| `!cek grup` | Tampilkan semua reminder bertarget grup |
+| `!hari` | Reminder yang jatuh tempo hari ini |
+| `!kirim` | Trigger kirim reminder sekarang tanpa nunggu jadwal |
 | `!done [no]` | Tandai reminder selesai |
-| `!damn` | Kirim sticker pilihan |
-| `!setdamn` | Set sticker untuk `!damn` (reply sticker/gambar) |
-| `!tambah` | Panduan tambah reminder via WA |
-| `!status` | Info bot, uptime, jumlah reminder |
+| `!tambah` | Panduan tambah reminder baru |
+| `!edit [no] [field] [nilai]` | Ubah satu field reminder |
+| `!hapus [no]` | Hapus reminder |
+| `!summary` | Ringkasan semua reminder aktif |
 
-### Contoh `!tambah`:
+### Format `!tambah`
 ```
-!tambah Laporan Q1 | 2025-03-31 | 628xxxxxxxxxx | 7,3,1,0 | Kirim ke email direktur
+!tambah [task] | [deadline] | [H-notif] | [catatan]
+```
+- **Deadline**: format `YYYY-MM-DD`
+- **H-notif**: `7,3,1,0` = kirim di H-7, H-3, H-1, dan hari H
+- **Target**: otomatis — grup jika dari grup, nomor sendiri jika dari chat pribadi
+- Disimpan ke tab `MyReminders`
+
+Contoh:
+```
+!tambah Laporan Bulanan | 2026-05-31 | 7,3,1,0 | Kirim ke email ketua
+!tambah Rapat Divisi | 2026-05-15 | 1,0 | Di aula utama
 ```
 
-Catatan:
-- `!tambah` selalu menambah data ke tab `MyReminders` (bukan `Reminders`), jadi tidak mengganggu data auto-import.
+### Format `!edit`
+```
+!edit [no] [field] [nilai baru]
+```
+
+Field yang tersedia:
+| Field | Alias | Keterangan |
+|---|---|---|
+| `task` | `nama` | Nama tugas |
+| `deadline` | `tanggal` | Format YYYY-MM-DD |
+| `notif` | — | Contoh: `3,1,0` |
+| `catatan` | `notes` | Teks bebas |
+
+Contoh:
+```
+!edit 3 task Laporan Akhir Semester
+!edit 3 deadline 2026-06-01
+!edit 3 notif 7,3,1,0
+!edit 3 catatan Kirim via email ke dosen
+```
+
+### Info
+
+| Command | Deskripsi |
+|---|---|
+| `!status` | Uptime bot, jumlah reminder aktif, jadwal cron |
+| `!help` | Tampilkan semua command |
 
 ---
 
-## 🔍 Cara Dapat Group JID
+## 🎨 Sticker
 
-Untuk kirim ke grup, kamu butuh JID grup (format: `120363xxx@g.us`).
+| Konteks | Cara Pakai |
+|---|---|
+| Chat pribadi ke bot | Kirim gambar/video → otomatis jadi sticker |
+| Di grup | Kirim gambar/video dengan caption `!sticker` |
 
-**Cara mudah:**
-1. Jalankan bot
-2. Kirim sembarang pesan ke grup dari nomor personal kamu (bukan nomor bot)
-3. Cek log terminal bot — akan tampil JID grup:
-   ```
-   📥 Incoming message from 120363xxx@g.us
-   ```
-4. Gunakan JID itu di kolom Target di Sheet
+- **Gambar**: JPG, PNG → sticker WebP 512x512
+- **Video**: MP4, WebM → animated sticker WebP, max 10 detik
 
 ---
 
-## 🔧 Cron Expression
+## ⏰ Scheduler Otomatis
 
-Format: `menit jam hari-bulan bulan hari-minggu`
+| Jadwal | Aksi |
+|---|---|
+| Setiap hari jam 08:00 WIB (default) | Kirim reminder yang due hari ini ke target masing-masing |
+| Setiap Senin jam 07:00 WIB | Weekly summary ke OWNER_NUMBER |
 
+**Cron expression** di `.env`:
 | Expression | Artinya |
 |---|---|
 | `0 8 * * *` | Setiap hari jam 08:00 |
-| `0 8,12 * * *` | Jam 08:00 dan 12:00 |
+| `30 9 * * *` | Setiap hari jam 09:30 |
 | `0 8 * * 1-5` | Hari kerja jam 08:00 |
-| `0 9 * * 1` | Setiap Senin jam 09:00 |
+| `*/2 * * * *` | Setiap 2 menit (untuk testing) |
 
 ---
 
-## 📁 Struktur Folder
+## 📊 Struktur Google Sheet
+
+### Tab `Reminders` (auto-import / read-only dari bot)
+Data dari ImportRange sheet lain. Bot membaca tapi tidak bisa menulis.
+- Baris pembatas bulan (MEI, APRIL, dll) otomatis di-skip
+- Kolom Target kosong → pakai `DEFAULT_GROUP_JID`
+- Kolom Status kosong → dianggap `active`
+
+### Tab `MyReminders` (writable via `!tambah`)
+Data yang ditambah lewat bot. Bisa di-`!done`, `!edit`, `!hapus`.
+
+**Format nilai kolom:**
+
+| Kolom | Format | Contoh |
+|---|---|---|
+| No | Angka | `1` |
+| Nama Task | Teks | `Laporan Bulanan` |
+| Deadline | YYYY-MM-DD | `2026-05-31` |
+| Target | Nomor/JID/kosong | `628xxx`, `120363xxx@g.us`, *(kosong)* |
+| H-Notif | Angka pisah koma | `7,3,1,0` |
+| Catatan | Teks/mention | `@628xxx segera kerjakan` |
+| Status | `active`/`done`/`skip` | `active` |
+
+### Mention di Kolom Catatan
+Tulis `@628xxxxxxxxxx` di kolom Catatan → bot akan mention orang tersebut di WhatsApp saat mengirim reminder.
+
+```
+@6282132341102 tolong segera kerjakan!
+```
+
+---
+
+## 🔒 Akses & Keamanan
+
+- Hanya nomor di `ALLOWED_NUMBERS` yang bisa pakai bot
+- Reminder dari tab `Reminders` (auto-import) bersifat **read-only** — tidak bisa di-`!done`, `!edit`, atau `!hapus` dari bot
+- Bot tidak akan merespons pesan dari nomor yang tidak terdaftar
+
+---
+
+## ⚠️ Catatan Overdue
+
+Reminder yang sudah lewat deadline tapi belum di-`!done` akan tetap muncul di reminder harian sampai **maksimal 7 hari** setelah deadline dengan label 🔴 "Telat X hari!". Setelah 7 hari berhenti otomatis.
+
+---
+
+## 🔧 Jalankan Permanen dengan PM2
+
+Agar bot tetap jalan meski terminal ditutup atau laptop restart:
+
+```bash
+npm install -g pm2
+pm2 start index.js --name reos-bot
+pm2 save
+pm2 startup   # ikuti instruksi yang muncul
+```
+
+Command PM2 berguna:
+```bash
+pm2 status          # cek status
+pm2 logs reos-bot   # lihat log
+pm2 restart reos-bot
+pm2 stop reos-bot
+```
+
+---
+
+## 📁 Struktur Project
 
 ```
 wa-reminder-bot/
-├── index.js              # Entry point
-├── .env                  # Konfigurasi (jangan di-commit!)
-├── credentials.json      # Google Service Account (jangan di-commit!)
+├── index.js                  # Entry point, koneksi Baileys
+├── .env                      # Konfigurasi (jangan di-commit!)
+├── .env.example              # Template konfigurasi
+├── credentials.json          # Google Service Account (jangan di-commit!)
 ├── package.json
-├── auth_info_baileys/    # Session WA (auto-generated, jangan dihapus)
+├── auth_info_baileys/        # Session WhatsApp (auto-generated)
 └── src/
-    ├── sheets.js         # Google Sheets integration
-    ├── scheduler.js      # Cron job
-    ├── reminder.js       # Formatting & helper
-    └── commandHandler.js # WhatsApp command handler
+    ├── sheets.js             # Google Sheets read/write
+    ├── scheduler.js          # Cron job harian & weekly summary
+    ├── reminder.js           # Format pesan & helper
+    ├── commandHandler.js     # Handler semua command WhatsApp
+    └── stickerHandler.js     # Convert gambar/video → sticker
 ```
 
 ---
 
-## ⚠️ Catatan Penting
+## 🛠️ Troubleshooting
 
-- Jangan hapus folder `auth_info_baileys/` — ini menyimpan sesi WhatsApp kamu
-- Jangan commit `credentials.json` dan `.env` ke Git
-- Baileys adalah unofficial API. Gunakan untuk keperluan personal, bukan spam
-- Laptop/PC harus menyala agar bot berjalan (atau gunakan PM2 agar restart otomatis)
-
-### Jalankan dengan PM2 (agar auto-restart jika crash):
-```bash
-npm install -g pm2
-pm2 start index.js --name reminder-bot
-pm2 save
-pm2 startup  # agar auto-start saat laptop restart
-```
+| Masalah | Solusi |
+|---|---|
+| QR tidak muncul | Pastikan `printQRInTerminal` tidak ada di config |
+| Bot tidak respon | Cek `ALLOWED_NUMBERS` di `.env` |
+| Error Sheets | Pastikan spreadsheet di-share ke email service account |
+| `Bad MAC error` | Hapus `auth_info_baileys/`, scan QR ulang |
+| Sticker video gagal | Pastikan ffmpeg terinstall dan ada di PATH |
+| Bot kirim "aktif" berkali-kali | Sudah teratasi dengan flag `isFirstConnect` |
+| Scheduler dobel | Sudah teratasi dengan flag `schedulerStarted` |
+| Reminder tidak terkirim jam 8 | Cek apakah laptop sleep — nonaktifkan sleep mode |
 
 ---
 
-## 🪟 Auto-Start di Windows (Service / On Boot)
+## 🗂️ .gitignore
 
-Kalau kamu mau bot jalan otomatis tanpa buka VSCode dan bisa auto-start saat Windows boot, pakai **Windows Service** (via NSSM).
-
-### 1) Pairing sekali (wajib)
-Jalankan bot normal dulu supaya bisa scan QR:
-```bash
-npm start
 ```
-Setelah berhasil connect dan folder `auth_info_baileys/` terisi, stop (Ctrl+C).
-
-### 2) Install NSSM (sekali)
-```bash
-winget install --id NSSM.NSSM -e --scope user --silent --accept-package-agreements --accept-source-agreements
+node_modules/
+auth_info_baileys/
+credentials.json
+.env
+*.log
 ```
-
-### 3) Install Service (Run as Administrator)
-Buka PowerShell / Terminal **Run as Administrator**, lalu:
-```bash
-npm run service:install
-```
-
-Log file:
-- `logs/out.log`
-- `logs/err.log`
-
-### (Opsional) Approval untuk !done dari non-owner
-Kalau kamu ingin user di `ALLOWED_NUMBERS` boleh kirim `!done`, tapi status *baru berubah setelah Abang approve*, set env:
-```env
-DONE_REQUIRE_OWNER_APPROVAL=true
-DONE_APPROVAL_TTL_MS=900000
-SHEET_OVERRIDE_TAB=BotOverrides
-APPROVER_NUMBERS=OWNER_NUMBER,62xxxxxxxxxx,62yyyyyyyyyy
-APPROVER_LABEL=Abang
-NUMBER_NAME_MAP=62xxxxxxxxxx=Ahmad,62yyyyyyyyyy=Almas,62zzzzzzzzzz=Ahimsa
-```
-
-Catatan kolom sheet:
-- Bot mencari header kolom `Status` dan `Approval` di baris 1 (posisinya bebas, tidak harus kolom G/H).
-- Saat `done`, bot akan isi `Status=done` dan `Approval=<nama approver>`.
-
-Bot akan kirim request ke Abang (semua nomor di `APPROVER_NUMBERS`) dan Abang bisa balas:
-- `!approve [code]`
-- `!reject [code]`
-
-### Uninstall Service
-(Run as Administrator)
-```bash
-npm run service:uninstall
-```
-
----
-
-## 🆕 Pengembangan Selanjutnya
-
-- [ ] Modul keuangan (catat pengeluaran/pemasukan via WA)
-- [ ] Backup reminder ke Sheets jika status berubah
-- [ ] Notifikasi via gambar/dokumen
-- [ ] Multi-sheet untuk kategori berbeda
