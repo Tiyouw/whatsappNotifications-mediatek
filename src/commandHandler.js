@@ -5,7 +5,7 @@ const { triggerManualCheck, sendWeeklySummary } = require("./scheduler");
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
-const { convertImageToSticker, getMediaBuffer } = require("./stickerHandler");
+const { convertImageToSticker, convertVideoToSticker, getMediaBuffer, getMimeType } = require("./stickerHandler");
 
 const pendingDoneApprovals = new Map();
 const DONE_APPROVAL_TTL_MS = parseInt(process.env.DONE_APPROVAL_TTL_MS || "900000"); // 15 minutes
@@ -122,6 +122,14 @@ function buildQuotedMessageForDownload(msg) {
   return { key, message: quotedMessage };
 }
 
+function getStickerSourceMessage(msg) {
+  if (msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.stickerMessage) {
+    return msg;
+  }
+
+  return buildQuotedMessageForDownload(msg);
+}
+
 function getMessageText(msg) {
   return (msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || "").trim();
 }
@@ -231,6 +239,28 @@ async function handleCommand(sock, msg) {
         } catch {
           await reply(sock, senderJid, msg, `❌ Sticker belum diset.\n\n` + `Reply ke *sticker/gambar* lalu kirim: *!setdamn*`);
         }
+        break;
+      }
+
+      // ── !sticker ─────────────────────────────────────────────────────────
+      case "sticker": {
+        const sourceMsg = getStickerSourceMessage(msg);
+
+        if (!sourceMsg) {
+          await reply(sock, senderJid, msg, `❓ Reply ke gambar/video/sticker lalu kirim: *!sticker*`);
+          break;
+        }
+
+        const mediaBuffer = await getMediaBuffer(sock, sourceMsg);
+        if (!mediaBuffer) {
+          await reply(sock, senderJid, msg, `❌ Tidak menemukan media di pesan yang direply.`);
+          break;
+        }
+
+        const isVideo = !!sourceMsg.message?.videoMessage || getMimeType(sourceMsg).startsWith("video/");
+        const stickerBuffer = isVideo ? await convertVideoToSticker(mediaBuffer, getMimeType(sourceMsg)) : await convertImageToSticker(mediaBuffer);
+
+        await sock.sendMessage(senderJid, { sticker: stickerBuffer }, { quoted: msg });
         break;
       }
 
