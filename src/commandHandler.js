@@ -243,9 +243,9 @@ async function handleCommand(sock, msg) {
           break;
         }
 
-        const result = await markAsDone(found);
+        const who = displayNameFromJid(fromJid);
+        const result = await markAsDone(found, who);
         if (result.success) {
-          const who = displayNameFromJid(fromJid);
           await reply(sock, senderJid, msg, `✅ *[${targetNo}] ${found.task}* ditandai selesai oleh ${who}! 🎉`);
         } else {
           await reply(sock, senderJid, msg, `❌ Gagal update: ${result.reason}`);

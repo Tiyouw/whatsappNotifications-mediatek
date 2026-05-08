@@ -15,8 +15,9 @@ async function getSheetsClient() {
   return sheetsClient;
 }
 
-// Kolom: A:No B:Nama Task C:Deadline D:Target E:H-Notif F:Catatan G:Status
-const COL = { NO: 0, TASK: 1, DEADLINE: 2, TARGET: 3, NOTIFY: 4, NOTES: 5, STATUS: 6 };
+// Kolom: A:No B:Nama Task C:Deadline D:Target E:H-Notif F:Catatan G:Status I:Approval
+// Kolom H sengaja tidak ditulis bot karena dipakai formula/ARRAYFORMULA di sheet.
+const COL = { NO: 0, TASK: 1, DEADLINE: 2, TARGET: 3, NOTIFY: 4, NOTES: 5, STATUS: 6, APPROVAL: 8 };
 
 /**
  * Skip baris kosong, pembatas bulan (MEI, APRIL, dll), atau deadline tidak valid
@@ -35,7 +36,7 @@ async function readTab(sheets, tabName, source = "auto") {
   try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: `${tabName}!A2:G`,
+      range: `${tabName}!A2:I`,
     });
     const rows = res.data.values || [];
     const reminders = [];
@@ -71,6 +72,7 @@ async function readTab(sheets, tabName, source = "auto") {
         notifyDays,
         notes: row[COL.NOTES]?.trim() || "",
         status,
+        approval: row[COL.APPROVAL]?.trim() || "",
       });
     }
     return reminders;
@@ -114,21 +116,28 @@ async function getDueReminders() {
 }
 
 /**
- * Tandai done — hanya untuk tab MyReminders (manual)
- * Tab Reminders (auto-import) adalah read-only dari Google Sheets API,
- * tidak bisa ditulis → user harus ubah langsung di sheet aslinya
+ * Tandai done dan catat approver.
  */
-async function markAsDone(reminder) {
-  // Hapus blok if (reminder.source === 'auto') — kolom Status bisa ditulis
+async function markAsDone(reminder, approvalName = "") {
   try {
     const sheets = await getSheetsClient();
-    await sheets.spreadsheets.values.update({
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: `${reminder.tabName}!G${reminder.rowIndex}`,
       valueInputOption: "RAW",
-      requestBody: { values: [["done"]] },
+      requestBody: {
+        data: [
+          {
+            range: `${reminder.tabName}!G${reminder.rowIndex}`,
+            values: [["done"]],
+          },
+          {
+            range: `${reminder.tabName}!I${reminder.rowIndex}`,
+            values: [[approvalName]],
+          },
+        ],
+      },
     });
-    console.log(`✅ Row ${reminder.rowIndex} tab "${reminder.tabName}" → done`);
+    console.log(`✅ Row ${reminder.rowIndex} tab "${reminder.tabName}" → done, approval: ${approvalName || "-"}`);
     return { success: true };
   } catch (err) {
     console.error("❌ Error markAsDone:", err.message);
