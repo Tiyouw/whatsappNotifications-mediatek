@@ -1,7 +1,16 @@
 const dayjs = require("dayjs");
+const path = require("path");
+const { readFile } = require("fs/promises");
 const { getReminders, getDueReminders, markAsDone, addReminder, editReminder, deleteReminder } = require("./sheets");
 const { formatSingleReminder, parseMentions, resolveTarget } = require("./reminder");
 const { triggerManualCheck, sendWeeklySummary } = require("./scheduler");
+
+const DAMN_STICKER_PATH = path.resolve(__dirname, "..", "data", "damn.webp");
+const COMMAND_ALIASES = new Map([
+  ["dam", "damn"],
+  ["damm", "damn"],
+  ["dammit", "damn"],
+]);
 
 function isAllowed(jid) {
   if (!jid) return false;
@@ -14,7 +23,33 @@ function isAllowed(jid) {
 }
 
 function getMessageText(msg) {
-  return (msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || "").trim();
+  const content = unwrapMessageContent(msg.message);
+  return (
+    content?.conversation ||
+    content?.extendedTextMessage?.text ||
+    content?.imageMessage?.caption ||
+    content?.videoMessage?.caption ||
+    content?.documentMessage?.caption ||
+    ""
+  ).trim();
+}
+
+function unwrapMessageContent(message) {
+  let content = message;
+
+  for (let i = 0; i < 8; i++) {
+    const next =
+      content?.ephemeralMessage?.message ||
+      content?.viewOnceMessage?.message ||
+      content?.viewOnceMessageV2?.message ||
+      content?.documentWithCaptionMessage?.message ||
+      content?.protocolMessage?.editedMessage;
+
+    if (!next || next === content) break;
+    content = next;
+  }
+
+  return content || {};
 }
 
 function isFromGroup(msg) {
@@ -74,8 +109,8 @@ async function handleCommand(sock, msg) {
     return;
   }
 
-  const [rawCmd, ...args] = text.slice(1).split(" ");
-  const cmd = rawCmd.toLowerCase();
+  const [rawCmd, ...args] = text.slice(1).trim().split(/\s+/);
+  const cmd = COMMAND_ALIASES.get(rawCmd.toLowerCase()) || rawCmd.toLowerCase();
   const argStr = args.join(" ").trim();
 
   console.log(`📥 Command: !${cmd} ${argStr} (dari ${fromJid})`);
@@ -99,7 +134,8 @@ async function handleCommand(sock, msg) {
             `!tambah — tambah reminder baru\n` +
             `!edit [no] [field] [nilai] — ubah satu field\n` +
             `!hapus [no] — hapus reminder\n` +
-            `!summary — ringkasan semua reminder aktif\n\n` +
+            `!summary — ringkasan semua reminder aktif\n` +
+            `!damn — kirim sticker damn\n\n` +
             `📝 *FORMAT !tambah*\n` +
             `!tambah task | YYYY-MM-DD | H-notif | catatan\n` +
             `Contoh: !tambah Rapat | 2026-05-10 | 3,1,0 | Di aula\n` +
@@ -179,6 +215,11 @@ async function handleCommand(sock, msg) {
         await reply(sock, senderJid, msg, "🔄 Mengirim reminder hari ini...");
         await triggerManualCheck(sock);
         await reply(sock, senderJid, msg, "✅ Selesai!");
+        break;
+
+      // ── !damn ──────────────────────────────────────────────────────────
+      case "damn":
+        await sendDamnSticker(sock, senderJid, msg);
         break;
 
       // ── !done ──────────────────────────────────────────────────────────
@@ -371,4 +412,14 @@ async function reply(sock, jid, msg, text, mentions = []) {
   await sock.sendMessage(jid, { text, mentions }, { quoted: msg });
 }
 
-module.exports = { handleCommand };
+async function sendDamnSticker(sock, jid, msg) {
+  try {
+    const sticker = await readFile(DAMN_STICKER_PATH);
+    await sock.sendMessage(jid, { sticker }, { quoted: msg });
+  } catch (err) {
+    console.error("❌ Gagal kirim !damn sticker:", err.message);
+    await reply(sock, jid, msg, "❌ Sticker !damn belum tersedia di server.");
+  }
+}
+
+module.exports = { handleCommand, getMessageText, unwrapMessageContent };

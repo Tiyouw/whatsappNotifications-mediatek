@@ -121,6 +121,7 @@ Scan QR yang muncul di terminal dengan WhatsApp nomor kedua:
 | `!edit [no] [field] [nilai]` | Ubah satu field reminder |
 | `!hapus [no]` | Hapus reminder |
 | `!summary` | Ringkasan semua reminder aktif |
+| `!damn` | Kirim sticker damn |
 
 ### Format `!tambah`
 ```
@@ -164,6 +165,7 @@ Contoh:
 |---|---|
 | `!status` | Uptime bot, jumlah reminder aktif, jadwal cron |
 | `!help` | Tampilkan semua command |
+| `!damn` | Kirim sticker damn |
 
 ---
 

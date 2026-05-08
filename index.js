@@ -15,6 +15,7 @@ const {
   convertImageToSticker,
   convertVideoToSticker,
   getMediaBuffer,
+  getMediaCaption,
   getMediaType,
   getMimeType,
 } = require("./src/stickerHandler");
@@ -129,18 +130,22 @@ async function connectToWhatsApp() {
       if (mediaType) {
         if (!isAllowed(fromJid)) continue;
 
-        const caption =
-          msg.message?.imageMessage?.caption ||
-          msg.message?.videoMessage?.caption ||
-          msg.message?.documentMessage?.caption || "";
+        const caption = getMediaCaption(msg);
+        const captionCommand = caption.trim().toLowerCase();
 
         const isPrivate = !msg.key.remoteJid?.includes("@g.us");
         const wantsSticker =
           caption.toLowerCase().includes("!sticker") || isPrivate;
 
+        if (captionCommand.startsWith("!") && !captionCommand.includes("!sticker")) {
+          await handleCommand(sock, msg);
+          continue;
+        }
+
         if (!wantsSticker) continue;
 
-        const isVideo = mediaType === "video";
+        const mimeType = getMimeType(msg);
+        const isVideo = mediaType === "video" || mimeType.startsWith("video/");
         console.log(`🎨 Membuat sticker dari ${isVideo ? "video" : "gambar"} (dari ${fromJid})`);
 
         try {
@@ -160,7 +165,6 @@ async function connectToWhatsApp() {
 
           let stickerBuffer;
           if (isVideo) {
-            const mimeType = getMimeType(msg);
             stickerBuffer = await convertVideoToSticker(buffer, mimeType);
           } else {
             stickerBuffer = await convertImageToSticker(buffer);

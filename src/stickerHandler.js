@@ -95,17 +95,42 @@ async function getMediaBuffer(sock, msg) {
  * Deteksi tipe media dari pesan
  */
 function getMediaType(msg) {
-  if (msg.message?.imageMessage) return "image";
-  if (msg.message?.videoMessage) return "video";
-  if (msg.message?.documentMessage) {
-    const mime = msg.message.documentMessage.mimetype || "";
+  const content = unwrapMessageContent(msg.message);
+  if (content?.imageMessage) return "image";
+  if (content?.videoMessage) return "video";
+  if (content?.documentMessage) {
+    const mime = content.documentMessage.mimetype || "";
     if (mime.startsWith("video/") || mime.startsWith("image/")) return "document";
   }
   return null;
 }
 
 function getMimeType(msg) {
-  return msg.message?.imageMessage?.mimetype || msg.message?.videoMessage?.mimetype || msg.message?.documentMessage?.mimetype || "video/mp4";
+  const content = unwrapMessageContent(msg.message);
+  return content?.imageMessage?.mimetype || content?.videoMessage?.mimetype || content?.documentMessage?.mimetype || "video/mp4";
+}
+
+function getMediaCaption(msg) {
+  const content = unwrapMessageContent(msg.message);
+  return content?.imageMessage?.caption || content?.videoMessage?.caption || content?.documentMessage?.caption || "";
+}
+
+function unwrapMessageContent(message) {
+  let content = message;
+
+  for (let i = 0; i < 8; i++) {
+    const next =
+      content?.ephemeralMessage?.message ||
+      content?.viewOnceMessage?.message ||
+      content?.viewOnceMessageV2?.message ||
+      content?.documentWithCaptionMessage?.message ||
+      content?.protocolMessage?.editedMessage;
+
+    if (!next || next === content) break;
+    content = next;
+  }
+
+  return content || {};
 }
 
 module.exports = {
@@ -114,4 +139,6 @@ module.exports = {
   getMediaBuffer,
   getMediaType,
   getMimeType,
+  getMediaCaption,
+  unwrapMessageContent,
 };

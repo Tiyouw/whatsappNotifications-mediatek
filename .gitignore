@@ -4,4 +4,6 @@ credentials.json
 .env
 *.log
 data/
+!data/
+!data/damn.webp
 tools/nssm/
