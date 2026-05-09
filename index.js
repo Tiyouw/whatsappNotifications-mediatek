@@ -34,7 +34,34 @@ function isAllowed(jid) {
     .split(",")
     .map((n) => n.trim().replace(/\D/g, ""))
     .filter(Boolean);
-  return allowedNumbers.some((number) => jid.includes(number));
+
+  // Standard check — works for @s.whatsapp.net JIDs
+  if (allowedNumbers.some((number) => jid.includes(number))) return true;
+
+  // @lid fallback — newer WhatsApp sends @lid instead of @s.whatsapp.net
+  // Try to resolve via sock contacts store
+  if (jid.includes("@lid") && sock) {
+    try {
+      const contacts = sock.store?.contacts || sock.contacts || {}
+      const contact = contacts[jid]
+      const resolvedJid = contact?.lid || contact?.id || ""
+      const resolvedNumber = resolvedJid.replace(/\D/g, "")
+      if (resolvedNumber && allowedNumbers.some((n) => resolvedNumber.includes(n) || n.includes(resolvedNumber))) {
+        return true
+      }
+      // Also check all contacts for a matching lid
+      for (const [, c] of Object.entries(contacts)) {
+        if (c?.lid === jid || c?.id === jid) {
+          const num = (c.id || "").replace(/\D/g, "")
+          if (allowedNumbers.some((n) => num.includes(n) || n.includes(num))) return true
+        }
+      }
+    } catch {
+      // ignore store lookup errors
+    }
+  }
+
+  return false;
 }
 
 async function connectToWhatsApp() {

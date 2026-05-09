@@ -23,6 +23,28 @@ function isAllowed(jid) {
   return allowedNumbers.some((number) => jid.includes(number));
 }
 
+/**
+ * Resolve the real sender JID from a message, handling @lid fallback.
+ * Newer WhatsApp uses @lid identifiers in groups instead of @s.whatsapp.net.
+ * We try multiple fields to find one that contains a real phone number.
+ */
+function resolveSenderJid(msg) {
+  const candidates = [
+    msg.key.participantPn,
+    msg.key.senderPn,
+    // participantPn/senderPn usually contain the real number even when participant is @lid
+    msg.key.participant,
+    msg.key.remoteJid,
+  ].filter(Boolean)
+
+  // Prefer any JID that contains a recognisable phone number (not @lid)
+  const real = candidates.find((j) => !j.includes("@lid"))
+  if (real) return real
+
+  // All candidates are @lid — return the first one anyway so caller can log it
+  return candidates[0] || ""
+}
+
 function getMessageText(msg) {
   const content = unwrapMessageContent(msg.message);
   return (
@@ -103,7 +125,7 @@ async function handleCommand(sock, msg) {
 
   if (!text.startsWith("!")) return;
 
-  const fromJid = msg.key.participantPn || msg.key.senderPn || msg.key.participant || msg.key.remoteJid;
+  const fromJid = resolveSenderJid(msg);
 
   if (!isAllowed(fromJid)) {
     console.log(`⛔ Akses ditolak dari: ${fromJid}`);
@@ -455,10 +477,16 @@ async function handleReaction(sock, reaction) {
   if (emoji !== "✅") return;
 
   // Who reacted — prefer participant (group), fall back to remoteJid (DM)
-  const reactorJid =
-    reaction.key?.participant ||
-    reaction.key?.remoteJid ||
-    "";
+  // Also handle @lid by preferring non-lid candidates
+  const reactorJid = [
+    reaction.key?.participantPn,
+    reaction.key?.senderPn,
+    reaction.key?.participant,
+    reaction.key?.remoteJid,
+  ].filter(Boolean).find((j) => !j.includes("@lid"))
+    || reaction.key?.participant
+    || reaction.key?.remoteJid
+    || "";
 
   // The chat where the reaction happened
   const chatJid = reaction.key?.remoteJid || "";
