@@ -84,6 +84,9 @@ OWNER_NUMBER=628xxxxxxxxxx
 # Nomor yang boleh akses bot (pisah koma, termasuk OWNER_NUMBER)
 ALLOWED_NUMBERS=628xxxxxxxxxx,628nomorteman1,628nomorteman2
 
+# LID identifiers yang boleh akses bot (untuk WhatsApp @lid format, pisah koma)
+ALLOWED_LIDS=125812544147601
+
 # Default target jika kolom Target di Sheet kosong
 DEFAULT_GROUP_JID=120363xxxxxxxxxx@g.us
 
@@ -233,6 +236,8 @@ Tulis `@628xxxxxxxxxx` di kolom Catatan → bot akan mention orang tersebut di W
 ## 🔒 Akses & Keamanan
 
 - Hanya nomor di `ALLOWED_NUMBERS` yang bisa pakai bot
+- WhatsApp kadang menggunakan format `@lid` (Linked ID) sebagai pengganti nomor telepon. Dalam kasus ini, bot mengecek `ALLOWED_LIDS` untuk otorisasi akses
+- Untuk mengetahui LID-mu: kirim pesan ke bot, jika ditolak, cek log console bot -- LID yang ditolak akan tercetak di sana
 - Reminder dari tab `Reminders` (auto-import) bersifat **read-only** — tidak bisa di-`!done`, `!edit`, atau `!hapus` dari bot
 - Bot tidak akan merespons pesan dari nomor yang tidak terdaftar
 
@@ -297,6 +302,7 @@ wa-reminder-bot/
 | Bot kirim "aktif" berkali-kali | Sudah teratasi dengan flag `isFirstConnect` |
 | Scheduler dobel | Sudah teratasi dengan flag `schedulerStarted` |
 | Reminder tidak terkirim jam 8 | Cek apakah laptop sleep — nonaktifkan sleep mode |
+| Bot rejects with "Akses ditolak" + `@lid` | Tambahkan numeric LID ke `ALLOWED_LIDS` di `.env`. Lihat log bot untuk LID yang ditolak. |
 
 ---
 
