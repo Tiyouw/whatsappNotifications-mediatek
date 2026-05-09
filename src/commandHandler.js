@@ -20,7 +20,14 @@ function isAllowed(jid) {
     .split(",")
     .map((n) => n.trim().replace(/\D/g, ""))
     .filter(Boolean);
-  return allowedNumbers.some((number) => jid.includes(number));
+
+  // Extract just the numeric part of the JID (works for both @s.whatsapp.net and @lid)
+  const jidNumbers = jid.replace(/\D/g, "");
+
+  // Check if numeric part of JID matches any allowed number (substring match both ways)
+  return allowedNumbers.some(
+    (number) => jidNumbers.includes(number) || number.includes(jidNumbers)
+  );
 }
 
 /**
@@ -124,10 +131,6 @@ async function handleCommand(sock, msg) {
   const text = getMessageText(msg);
 
   if (!text.startsWith("!")) return;
-
-  // DEBUG — log full key so we can see what fields are actually available
-  console.log("🔍 DEBUG msg.key:", JSON.stringify(msg.key, null, 2));
-  console.log("🔍 DEBUG msg.message keys:", Object.keys(msg.message || {}));
 
   // Use pre-resolved JID if injected by index.js (handles @lid)
   const fromJid = msg._resolvedFromJid || resolveSenderJid(msg);

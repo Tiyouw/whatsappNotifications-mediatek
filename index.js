@@ -45,24 +45,13 @@ function isAllowed(jid) {
     .map((n) => n.trim().replace(/\D/g, ""))
     .filter(Boolean);
 
-  // 1. Standard check — works for @s.whatsapp.net JIDs
-  if (allowedNumbers.some((number) => jid.includes(number))) return true;
+  // Extract just the numeric part of the JID (works for both @s.whatsapp.net and @lid)
+  const jidNumbers = jid.replace(/\D/g, "");
 
-  // 2. Resolve @lid via contacts map, then check
-  if (jid.includes("@lid")) {
-    const resolved = lidToJid.get(jid);
-    if (resolved && allowedNumbers.some((number) => resolved.includes(number))) return true;
-
-    // 3. Last resort: check ALLOWED_LIDS env variable
-    // Set this in Replit Secrets after first seeing the @lid in the log
-    const allowedLids = (process.env.ALLOWED_LIDS || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (allowedLids.some((lid) => jid.includes(lid.replace("@lid", "")))) return true;
-  }
-
-  return false;
+  // Check if numeric part of JID matches any allowed number (substring match both ways)
+  return allowedNumbers.some(
+    (number) => jidNumbers.includes(number) || number.includes(jidNumbers)
+  );
 }
 
 async function connectToWhatsApp() {
