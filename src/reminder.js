@@ -35,6 +35,36 @@ function formatReminderMessage(reminders) {
 }
 
 /**
+ * Format SATU reminder sebagai pesan mandiri untuk dikirim 1-per-message.
+ * Dipakai oleh scheduler saat morning blast, sehingga tiap pesan bisa
+ * di-react ✅ secara individual untuk auto-done.
+ *
+ * Format:
+ *   🔴 *[1] SIDANG/SEMPRO*
+ *   📅 06 May 2026 — Telat 3 hari!
+ *   📝 PJ: @6283111923563
+ *   ─────────────────────────────
+ *   _React ✅ untuk tandai selesai  •  !done 1_
+ *
+ * @param {Object} r  - reminder object with daysLeft already set
+ * @returns {{ text: string, mentions: string[] }}
+ */
+function formatSingleReminderMessage(r) {
+  const urgencyEmoji = getUrgencyEmoji(r.daysLeft)
+  const urgencyText  = getUrgencyText(r.daysLeft)
+  const deadlineFormatted = r.deadline.format('DD MMM YYYY')
+  const { text: notesText, mentions } = parseMentions(r.notes || '')
+
+  let msg = `${urgencyEmoji} *[${r.globalNo}] ${r.task}*\n`
+  msg += `   ⏳ ${deadlineFormatted} — ${urgencyText}\n`
+  if (notesText) msg += `   📝 ${notesText}\n`
+  msg += `${'─'.repeat(28)}\n`
+  msg += `_React ✅ selesai  •  !done ${r.globalNo}_`
+
+  return { text: msg, mentions: [...new Set(mentions)] }
+}
+
+/**
  * Format satu reminder untuk !hari (dengan nomor)
  */
 function formatSingleReminder(r) {
@@ -107,6 +137,7 @@ function getUrgencyText(daysLeft) {
 
 module.exports = {
   formatReminderMessage,
+  formatSingleReminderMessage,
   formatSingleReminder,
   parseMentions,
   resolveTarget,

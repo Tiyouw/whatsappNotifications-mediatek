@@ -1,7 +1,8 @@
 const cron = require('node-cron')
 const dayjs = require('dayjs')
 const { getReminders, getDueReminders } = require('./sheets')
-const { formatReminderMessage, resolveTarget } = require('./reminder')
+const { formatReminderMessage, formatSingleReminderMessage, resolveTarget } = require('./reminder')
+const reactionMap = require('./reactionMap')
 
 let schedulerStarted = false
 
@@ -36,9 +37,10 @@ async function runReminderCheck(sock) {
       return
     }
 
-    console.log(`   📨 Mengirim ${dueReminders.length} reminder...`)
+    console.log(`   📨 Mengirim ${dueReminders.length} reminder (1 pesan per reminder)...`)
 
-    // Group by target
+    // Group by target so we can send a header once per target,
+    // then send each reminder as its own message.
     const grouped = {}
     for (const r of dueReminders) {
       const target = r.target || process.env.OWNER_NUMBER
@@ -53,15 +55,45 @@ async function runReminderCheck(sock) {
         continue
       }
 
-      const { text, mentions } = formatReminderMessage(reminders)
+      // ── Header message (1 per target) ───────────────────────────────
+      const today = dayjs().format('DD MMM YYYY')
+      const headerText =
+        `🤖 *Reo'sBot Reminder*\n` +
+        `📅 ${today} — ${reminders.length} reminder untuk hari ini\n` +
+        `${'─'.repeat(28)}`
 
       try {
-        await sock.sendMessage(jid, { text, mentions })
-        console.log(`   ✅ Terkirim ke ${target} (${reminders.length} reminder)`)
-        await delay(1500)
+        await sock.sendMessage(jid, { text: headerText })
+        await delay(800)
       } catch (err) {
-        console.error(`   ❌ Gagal kirim ke ${target}:`, err.message)
+        console.error(`   ❌ Gagal kirim header ke ${target}:`, err.message)
       }
+
+      // ── One message per reminder ─────────────────────────────────────
+      for (const r of reminders) {
+        const { text, mentions } = formatSingleReminderMessage(r)
+
+        try {
+          const sent = await sock.sendMessage(jid, { text, mentions })
+
+          // Store messageId → reminderNo so reactions can resolve it
+          // Baileys returns the sent message; the id lives at sent.key.id
+          const msgId = sent?.key?.id
+          if (msgId) {
+            reactionMap.set(msgId, r.globalNo, jid)
+            console.log(`   ✅ [${r.globalNo}] "${r.task}" → ${target} (msgId: ${msgId})`)
+          } else {
+            console.log(`   ✅ [${r.globalNo}] "${r.task}" → ${target} (msgId unavailable)`)
+          }
+
+          await delay(1200)
+        } catch (err) {
+          console.error(`   ❌ Gagal kirim reminder [${r.globalNo}] ke ${target}:`, err.message)
+        }
+      }
+
+      // Small pause between different targets
+      await delay(1500)
     }
   } catch (err) {
     console.error('❌ Error saat cek reminder:', err.message)
