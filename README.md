@@ -125,6 +125,7 @@ Scan QR yang muncul di terminal dengan WhatsApp nomor kedua:
 | `!hapus [no]` | Hapus reminder |
 | `!summary` | Ringkasan semua reminder aktif |
 | `!damn` | Kirim sticker damn |
+| `!setdamn` | Update sticker `!damn` (reply ke gambar/video dengan `!setdamn`, atau kirim media dengan caption `!setdamn`) |
 
 ### Format `!tambah`
 ```

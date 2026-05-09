@@ -1,18 +1,57 @@
 const dayjs = require("dayjs");
 const path = require("path");
-const { readFile } = require("fs/promises");
+const { readFile, writeFile, mkdir } = require("fs/promises");
 const { getReminders, getDueReminders, markAsDone, addReminder, editReminder, deleteReminder } = require("./sheets");
 const { formatSingleReminder, parseMentions, resolveTarget } = require("./reminder");
 const { triggerManualCheck, sendWeeklySummary } = require("./scheduler");
+const {
+  convertImageToSticker,
+  convertVideoToSticker,
+  getMediaBuffer,
+  getMediaType,
+  getMimeType,
+} = require("./stickerHandler");
 const reactionMap = require("./reactionMap");
 const { now } = require("./time");
 
-const DAMN_STICKER_PATH = path.resolve(__dirname, "..", "data", "damn.webp");
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 const COMMAND_ALIASES = new Map([
   ["dam", "damn"],
   ["damm", "damn"],
   ["dammit", "damn"],
+  ["setdam", "setdamn"],
+  ["setdamm", "setdamn"],
 ]);
+
+/**
+ * Resolve DAMN_STICKER_PATH at call-time so changes to env are picked up
+ * and so !setdamn writes to the same location !damn reads from.
+ * Relative paths resolve against the project root.
+ */
+function resolveDamnStickerPath() {
+  const raw = process.env.DAMN_STICKER_PATH || "./data/damn.webp";
+  return path.isAbsolute(raw) ? raw : path.resolve(PROJECT_ROOT, raw);
+}
+
+/**
+ * Reconstruct a Baileys-shaped msg object from the quotedMessage in a reply's
+ * contextInfo. This lets sticker/media helpers operate on the quoted media
+ * as if it were a regular incoming message.
+ */
+function buildQuotedMsg(msg) {
+  const content = unwrapMessageContent(msg.message);
+  const ctx = content?.extendedTextMessage?.contextInfo;
+  if (!ctx?.quotedMessage) return null;
+  return {
+    key: {
+      remoteJid: msg.key.remoteJid,
+      id: ctx.stanzaId,
+      participant: ctx.participant,
+      fromMe: false,
+    },
+    message: ctx.quotedMessage,
+  };
+}
 
 function isAllowed(jid) {
   if (!jid) return false;
@@ -181,7 +220,8 @@ async function handleCommand(sock, msg) {
             `!edit [no] [field] [nilai] — ubah satu field\n` +
             `!hapus [no] — hapus reminder\n` +
             `!summary — ringkasan semua reminder aktif\n` +
-            `!damn — kirim sticker damn\n\n` +
+            `!damn — kirim sticker damn\n` +
+            `!setdamn — update sticker !damn (reply / caption media)\n\n` +
             `✅ *REACTION SHORTCUT*\n` +
             `React ✅ pada pesan reminder pagi\n` +
             `→ otomatis tandai reminder itu selesai\n` +
@@ -270,6 +310,11 @@ async function handleCommand(sock, msg) {
       // ── !damn ──────────────────────────────────────────────────────────
       case "damn":
         await sendDamnSticker(sock, senderJid, msg);
+        break;
+
+      // ── !setdamn ───────────────────────────────────────────────────────
+      case "setdamn":
+        await handleSetDamn(sock, senderJid, msg);
         break;
 
       // ── !done ──────────────────────────────────────────────────────────
@@ -463,12 +508,69 @@ async function reply(sock, jid, msg, text, mentions = []) {
 }
 
 async function sendDamnSticker(sock, jid, msg) {
+  const stickerPath = resolveDamnStickerPath();
   try {
-    const sticker = await readFile(DAMN_STICKER_PATH);
+    const sticker = await readFile(stickerPath);
     await sock.sendMessage(jid, { sticker }, { quoted: msg });
   } catch (err) {
     console.error("❌ Gagal kirim !damn sticker:", err.message);
     await reply(sock, jid, msg, "❌ Sticker !damn belum tersedia di server.");
+  }
+}
+
+/**
+ * Update the !damn sticker. Accepts media either directly on the invoking
+ * message (caption !setdamn) or on a message being quoted (reply with !setdamn).
+ */
+async function handleSetDamn(sock, jid, msg) {
+  // Flow B: media attached directly to this message
+  let sourceMsg = getMediaType(msg) ? msg : null;
+
+  // Flow A: replying to a message that has media
+  if (!sourceMsg) {
+    const quoted = buildQuotedMsg(msg);
+    if (quoted && getMediaType(quoted)) {
+      sourceMsg = quoted;
+    }
+  }
+
+  if (!sourceMsg) {
+    await reply(
+      sock,
+      jid,
+      msg,
+      "❓ *!setdamn* — balas pesan gambar/video dengan !setdamn, atau kirim gambar/video dengan caption !setdamn",
+    );
+    return;
+  }
+
+  await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } }).catch(() => {});
+
+  try {
+    const buffer = await getMediaBuffer(sock, sourceMsg);
+    if (!buffer) {
+      await reply(sock, jid, msg, "❌ Gagal download media.");
+      return;
+    }
+
+    const mimeType = getMimeType(sourceMsg);
+    const mediaType = getMediaType(sourceMsg);
+    const isVideo = mediaType === "video" || mimeType.startsWith("video/");
+
+    const stickerBuffer = isVideo
+      ? await convertVideoToSticker(buffer, mimeType)
+      : await convertImageToSticker(buffer);
+
+    const stickerPath = resolveDamnStickerPath();
+    await mkdir(path.dirname(stickerPath), { recursive: true });
+    await writeFile(stickerPath, stickerBuffer);
+
+    await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } }).catch(() => {});
+    await reply(sock, jid, msg, "✅ Sticker !damn berhasil diupdate!");
+    console.log(`✅ !damn sticker updated → ${stickerPath}`);
+  } catch (err) {
+    console.error("❌ Gagal update !damn sticker:", err.message);
+    await reply(sock, jid, msg, `❌ Gagal update sticker !damn: ${err.message}`);
   }
 }
 
