@@ -215,32 +215,34 @@ async function handleCommand(sock, msg) {
             `!cek grup — semua reminder bertarget grup\n` +
             `!cek saya — reminder yang ditujukan ke kamu\n` +
             `!hari — reminder yang due hari ini\n` +
-            `!kirim — trigger kirim reminder sekarang\n` +
-            `!done [no] — tandai reminder selesai\n` +
+            `!kirim — kirim reminder hari ini sekarang\n` +
             `!tambah — tambah reminder baru\n` +
             `!edit [no] [field] [nilai] — ubah satu field\n` +
+            `!done [no] — tandai reminder selesai\n` +
             `!hapus [no] — hapus reminder\n` +
-            `!summary — ringkasan semua reminder aktif\n` +
-            `!damn — kirim sticker damn\n` +
-            `!setdamn — update sticker !damn (reply / caption media)\n\n` +
+            `!summary — ringkasan semua reminder aktif\n\n` +
             `✅ *REACTION SHORTCUT*\n` +
-            `React ✅ pada pesan reminder pagi\n` +
-            `→ otomatis tandai reminder itu selesai\n` +
-            `(hanya berlaku untuk nomor yang diizinkan)\n\n` +
-            `📝 *FORMAT !tambah*\n` +
-            `!tambah task | YYYY-MM-DD | H-notif | catatan\n` +
-            `Contoh: !tambah Rapat | 2026-05-10 | 3,1,0 | Di aula\n` +
-            `Target: otomatis grup/pribadi sesuai konteks\n\n` +
-            `📝 *FORMAT !edit*\n` +
-            `Field: task, deadline, notif, catatan\n` +
-            `Contoh: !edit 3 deadline 2026-06-01\n\n` +
+            `React ✅ pada pesan reminder pagi → otomatis\n` +
+            `tandai reminder itu selesai (hanya nomor diizinkan)\n\n` +
             `🎨 *STICKER*\n` +
             `Pribadi: kirim gambar/video → langsung jadi sticker\n` +
             `Grup: kirim media + caption !sticker\n` +
             `Video max 10 detik\n\n` +
+            `😤 *DAMN STICKER*\n` +
+            `!damn — kirim sticker !damn\n` +
+            `!setdamn — update sticker !damn:\n` +
+            `   • balas gambar/video dengan !setdamn, atau\n` +
+            `   • kirim gambar/video dengan caption !setdamn\n\n` +
             `ℹ️ *INFO*\n` +
             `!status — uptime & info bot\n` +
             `!help — pesan ini\n\n` +
+            `📝 *FORMAT !tambah*\n` +
+            `!tambah task | YYYY-MM-DD | H-notif | catatan\n` +
+            `Contoh: !tambah Rapat | 2026-05-10 | 3,1,0 | Di aula\n` +
+            `Target otomatis: grup jika dari grup, pribadi jika DM\n\n` +
+            `📝 *FORMAT !edit*\n` +
+            `Field: task, deadline, notif, catatan\n` +
+            `Contoh: !edit 3 deadline 2026-06-01\n\n` +
             `🔒 Reminder auto-import (tab Reminders) tidak bisa\n` +
             `   di-!done/!edit/!hapus — ubah langsung di Sheet`,
         );
