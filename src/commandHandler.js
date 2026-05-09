@@ -129,7 +129,8 @@ async function handleCommand(sock, msg) {
   console.log("🔍 DEBUG msg.key:", JSON.stringify(msg.key, null, 2));
   console.log("🔍 DEBUG msg.message keys:", Object.keys(msg.message || {}));
 
-  const fromJid = resolveSenderJid(msg);
+  // Use pre-resolved JID if injected by index.js (handles @lid)
+  const fromJid = msg._resolvedFromJid || resolveSenderJid(msg);
 
   if (!isAllowed(fromJid)) {
     console.log(`⛔ Akses ditolak dari: ${fromJid}`);

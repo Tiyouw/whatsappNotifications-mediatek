@@ -27,41 +27,28 @@ let schedulerStarted = false;
 let isFirstConnect = true;
 let reconnectCount = 0;
 
+// lid → phone number map, built from contacts events
+// e.g. { "125812544147601@lid": "6282132341102@s.whatsapp.net" }
+const lidToJid = new Map();
+
+function resolveLid(jid) {
+  if (!jid.includes("@lid")) return jid;
+  return lidToJid.get(jid) || jid;
+}
+
 function isAllowed(jid) {
   if (!jid) return false;
+
+  // Resolve @lid to real JID first
+  const resolved = resolveLid(jid);
+
   const allowedRaw = process.env.ALLOWED_NUMBERS || process.env.OWNER_NUMBER || "";
   const allowedNumbers = allowedRaw
     .split(",")
     .map((n) => n.trim().replace(/\D/g, ""))
     .filter(Boolean);
 
-  // Standard check — works for @s.whatsapp.net JIDs
-  if (allowedNumbers.some((number) => jid.includes(number))) return true;
-
-  // @lid fallback — newer WhatsApp sends @lid instead of @s.whatsapp.net
-  // Try to resolve via sock contacts store
-  if (jid.includes("@lid") && sock) {
-    try {
-      const contacts = sock.store?.contacts || sock.contacts || {}
-      const contact = contacts[jid]
-      const resolvedJid = contact?.lid || contact?.id || ""
-      const resolvedNumber = resolvedJid.replace(/\D/g, "")
-      if (resolvedNumber && allowedNumbers.some((n) => resolvedNumber.includes(n) || n.includes(resolvedNumber))) {
-        return true
-      }
-      // Also check all contacts for a matching lid
-      for (const [, c] of Object.entries(contacts)) {
-        if (c?.lid === jid || c?.id === jid) {
-          const num = (c.id || "").replace(/\D/g, "")
-          if (allowedNumbers.some((n) => num.includes(n) || n.includes(num))) return true
-        }
-      }
-    } catch {
-      // ignore store lookup errors
-    }
-  }
-
-  return false;
+  return allowedNumbers.some((number) => resolved.includes(number));
 }
 
 async function connectToWhatsApp() {
@@ -85,6 +72,25 @@ async function connectToWhatsApp() {
   });
 
   sock.ev.on("creds.update", saveCreds);
+
+  // Build lid → JID map from contacts so we can resolve @lid identifiers
+  sock.ev.on("contacts.upsert", (contacts) => {
+    for (const contact of contacts) {
+      // contact.id = "628xxx@s.whatsapp.net", contact.lid = "12345@lid"
+      if (contact.id && contact.lid) {
+        lidToJid.set(contact.lid, contact.id);
+      }
+    }
+    console.log(`📇 Contacts updated: ${lidToJid.size} lid mappings`)
+  });
+
+  sock.ev.on("contacts.update", (updates) => {
+    for (const update of updates) {
+      if (update.id && update.lid) {
+        lidToJid.set(update.lid, update.id);
+      }
+    }
+  });
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -152,10 +158,13 @@ async function connectToWhatsApp() {
         msg.key.participant ||
         msg.key.remoteJid;
 
+      // Resolve @lid to real phone JID using our contacts map
+      const resolvedFromJid = resolveLid(fromJid);
+
       // ── Handle media (gambar/video) → sticker ──────────────────────────
       const mediaType = getMediaType(msg);
       if (mediaType) {
-        if (!isAllowed(fromJid)) continue;
+        if (!isAllowed(resolvedFromJid)) continue;
 
         const caption = getMediaCaption(msg);
         const captionCommand = caption.trim().toLowerCase();
@@ -218,6 +227,8 @@ async function connectToWhatsApp() {
       }
 
       // ── Handle teks → command handler ──────────────────────────────────
+      // Inject resolved JID so commandHandler can use it for isAllowed check
+      msg._resolvedFromJid = resolvedFromJid;
       await handleCommand(sock, msg);
     }
   });
