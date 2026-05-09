@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
-    "@whiskeysockets/baileys": "^6.7.9",
+    "@whiskeysockets/baileys": "^6.7.18",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.5",
     "ffmpeg-static": "^5.3.0",

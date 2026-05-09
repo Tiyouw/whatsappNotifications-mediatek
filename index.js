@@ -228,10 +228,12 @@ async function connectToWhatsApp() {
         const isVideo = mediaType === "video" || mimeType.startsWith("video/");
         console.log(`🎨 Membuat sticker dari ${isVideo ? "video" : "gambar"} (dari ${fromJid})`);
 
+        // Always land on a final reaction state (✅ or ❌) so the UX is clear.
+        let stickerSent = false;
         try {
           await sock.sendMessage(msg.key.remoteJid, {
             react: { text: "⏳", key: msg.key },
-          });
+          }).catch(() => {});
 
           const buffer = await getMediaBuffer(sock, msg);
           if (!buffer) {
@@ -239,7 +241,7 @@ async function connectToWhatsApp() {
               msg.key.remoteJid,
               { text: "❌ Gagal download media." },
               { quoted: msg }
-            );
+            ).catch(() => {});
             continue;
           }
 
@@ -251,9 +253,7 @@ async function connectToWhatsApp() {
           }
 
           await sock.sendMessage(msg.key.remoteJid, { sticker: stickerBuffer });
-          await sock.sendMessage(msg.key.remoteJid, {
-            react: { text: "✅", key: msg.key },
-          });
+          stickerSent = true;
 
           console.log(`✅ Sticker ${isVideo ? "video" : "gambar"} berhasil dikirim`);
         } catch (err) {
@@ -264,6 +264,14 @@ async function connectToWhatsApp() {
               { text: `❌ Gagal buat sticker: ${err.message}` },
               { quoted: msg }
             )
+            .catch(() => {});
+        } finally {
+          // Always update the reaction to a definitive state so the photo
+          // doesn't stay on ⏳ forever.
+          await sock
+            .sendMessage(msg.key.remoteJid, {
+              react: { text: stickerSent ? "✅" : "❌", key: msg.key },
+            })
             .catch(() => {});
         }
 

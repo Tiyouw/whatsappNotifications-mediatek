@@ -566,6 +566,7 @@ async function handleSetDamn(sock, jid, msg) {
 
   await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } }).catch(() => {});
 
+  let success = false;
   try {
     const buffer = await getMediaBuffer(sock, sourceMsg);
     if (!buffer) {
@@ -585,12 +586,17 @@ async function handleSetDamn(sock, jid, msg) {
     await mkdir(path.dirname(stickerPath), { recursive: true });
     await writeFile(stickerPath, stickerBuffer);
 
-    await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } }).catch(() => {});
+    success = true;
     await reply(sock, jid, msg, "✅ Sticker !damn berhasil diupdate!");
     console.log(`✅ !damn sticker updated → ${stickerPath}`);
   } catch (err) {
     console.error("❌ Gagal update !damn sticker:", err.message);
     await reply(sock, jid, msg, `❌ Gagal update sticker !damn: ${err.message}`);
+  } finally {
+    // Always land on a definitive reaction state so the photo isn't stuck on ⏳
+    await sock
+      .sendMessage(jid, { react: { text: success ? "✅" : "❌", key: msg.key } })
+      .catch(() => {});
   }
 }
 
