@@ -213,6 +213,7 @@ async function handleCommand(sock, msg) {
             `!cek — reminder aktif di konteks ini\n` +
             `!cek semua — semua reminder (dari pribadi)\n` +
             `!cek grup — semua reminder bertarget grup\n` +
+            `!cek saya — reminder yang ditujukan ke kamu\n` +
             `!hari — reminder yang due hari ini\n` +
             `!kirim — trigger kirim reminder sekarang\n` +
             `!done [no] — tandai reminder selesai\n` +
@@ -272,7 +273,11 @@ async function handleCommand(sock, msg) {
           return `${statusEmoji} *[${r.globalNo}] ${r.task}*${tag}\n   📅 ${deadlineStr} ${daysText}${notesText ? `\n   📝 ${notesText}` : ""}`;
         });
 
-        const contextLabel = isFromGroup(msg) ? "Grup Ini" : argStr ? `Filter: ${argStr}` : "Semua";
+        const contextLabel = isFromGroup(msg)
+          ? "Grup Ini"
+          : !argStr || argStr.toLowerCase() === "semua"
+            ? "Semua"
+            : `Filter: ${argStr}`;
         const fullText = `📋 *Reminder Aktif — ${contextLabel}*\n\n${lines.join("\n\n")}\n\n_🔒 = auto-import, ubah status langsung di Sheet_`;
         await reply(sock, senderJid, msg, fullText, [...new Set(allMentions)]);
         break;
@@ -380,15 +385,30 @@ async function handleCommand(sock, msg) {
           break;
         }
 
-        const autoTarget = isFromGroup(msg) ? senderJid : fromJid?.includes("@s.whatsapp.net") ? fromJid : `${process.env.OWNER_NUMBER}@s.whatsapp.net`;
+        // Pick the right target for the new reminder:
+        // - From a group → send to this group
+        // - From private chat with a phone JID → send to that number
+        // - From private chat with @lid → route to the owner (we can't reliably
+        //   resolve an @lid back to a phone number without a contact sync)
+        const isLidSender = fromJid?.includes("@lid");
+        const autoTarget = isFromGroup(msg)
+          ? senderJid
+          : fromJid?.includes("@s.whatsapp.net")
+            ? fromJid
+            : `${process.env.OWNER_NUMBER}@s.whatsapp.net`;
 
         const success = await addReminder({ task, deadline, target: autoTarget, notifyDays, notes });
         if (success) {
+          const targetLabel = isFromGroup(msg)
+            ? "grup ini"
+            : isLidSender
+              ? `nomor owner (${process.env.OWNER_NUMBER}) — kirim dari grup jika mau ke nomor lain`
+              : "kamu";
           await reply(
             sock,
             senderJid,
             msg,
-            `✅ Reminder ditambahkan ke *MyReminders*!\n\n` + `📌 *${task}*\n` + `📅 Deadline: ${dayjs(deadline).format("DD MMM YYYY")}\n` + `🔔 Notif di H-: ${notifyDays}\n` + `📨 Target: ${isFromGroup(msg) ? "grup ini" : "kamu"}`,
+            `✅ Reminder ditambahkan ke *MyReminders*!\n\n` + `📌 *${task}*\n` + `📅 Deadline: ${dayjs(deadline).format("DD MMM YYYY")}\n` + `🔔 Notif di H-: ${notifyDays}\n` + `📨 Target: ${targetLabel}`,
           );
         } else {
           await reply(sock, senderJid, msg, "❌ Gagal menambah reminder.");
