@@ -15,16 +15,30 @@ const COMMAND_ALIASES = new Map([
 
 function isAllowed(jid) {
   if (!jid) return false;
+
+  // Check ALLOWED_LIDS (for @lid format JIDs)
+  const allowedLidsRaw = process.env.ALLOWED_LIDS || "";
+  const allowedLids = allowedLidsRaw
+    .split(",")
+    .map((n) => n.trim())
+    .filter(Boolean);
+
+  // Extract the numeric/identifier part before the @ sign
+  const idPart = jid.split("@")[0];
+
+  if (allowedLids.some((lid) => lid === idPart)) {
+    return true;
+  }
+
+  // Check ALLOWED_NUMBERS (for @s.whatsapp.net format JIDs)
   const allowedRaw = process.env.ALLOWED_NUMBERS || process.env.OWNER_NUMBER || "";
   const allowedNumbers = allowedRaw
     .split(",")
     .map((n) => n.trim().replace(/\D/g, ""))
     .filter(Boolean);
 
-  // Extract just the numeric part of the JID (works for both @s.whatsapp.net and @lid)
   const jidNumbers = jid.replace(/\D/g, "");
 
-  // Check if numeric part of JID matches any allowed number (substring match both ways)
   return allowedNumbers.some(
     (number) => jidNumbers.includes(number) || number.includes(jidNumbers)
   );
