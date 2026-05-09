@@ -20,6 +20,15 @@ const {
   getMimeType,
 } = require("./src/stickerHandler");
 
+// ── Keep-alive HTTP server for UptimeRobot ──────────────────────────
+const http = require('http');
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot is running');
+}).listen(3000, () => {
+  console.log('🌐 Keep-alive server listening on port 3000');
+});
+
 const logger = pino({ level: "silent" });
 
 let sock = null;
