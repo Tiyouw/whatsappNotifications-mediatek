@@ -125,6 +125,10 @@ async function handleCommand(sock, msg) {
 
   if (!text.startsWith("!")) return;
 
+  // DEBUG — log full key so we can see what fields are actually available
+  console.log("🔍 DEBUG msg.key:", JSON.stringify(msg.key, null, 2));
+  console.log("🔍 DEBUG msg.message keys:", Object.keys(msg.message || {}));
+
   const fromJid = resolveSenderJid(msg);
 
   if (!isAllowed(fromJid)) {
