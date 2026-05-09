@@ -1,5 +1,8 @@
 import { google } from "googleapis";
 import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+
+dayjs.extend(customParseFormat);
 
 export interface Reminder {
   no: string;
@@ -42,7 +45,7 @@ const COL = {
 function isValidRow(row: string[]): boolean {
   if (!row[COL.TASK] || row[COL.TASK].trim().length < 2) return false;
   const deadline = row[COL.DEADLINE]?.trim();
-  if (!deadline || !dayjs(deadline).isValid()) return false;
+  if (!deadline || !dayjs(deadline, "YYYY-MM-DD", true).isValid()) return false;
   const taskUpper = row[COL.TASK].trim().toUpperCase();
   if (MONTH_NAMES.includes(taskUpper)) return false;
   return true;

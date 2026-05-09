@@ -56,9 +56,12 @@ export default function Home() {
       return true;
     })
     .sort((a, b) => {
-      const aDate = dayjs(a.deadline);
-      const bDate = dayjs(b.deadline);
-      return aDate.valueOf() - bDate.valueOf();
+      // Active items before done/skip
+      const aActive = a.status === "active" ? 0 : 1;
+      const bActive = b.status === "active" ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      // Then by deadline ascending
+      return dayjs(a.deadline).valueOf() - dayjs(b.deadline).valueOf();
     });
 
   return (

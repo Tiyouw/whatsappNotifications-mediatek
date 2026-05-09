@@ -1,9 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getReminders } from "@/lib/sheets";
 
-export const dynamic = "force-dynamic";
+export async function GET(request: NextRequest) {
+  const apiSecret = process.env.API_SECRET;
+  if (apiSecret) {
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : null;
+    if (token !== apiSecret) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
 
-export async function GET() {
   try {
     const reminders = await getReminders();
     return NextResponse.json(
