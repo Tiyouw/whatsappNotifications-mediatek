@@ -1,4 +1,5 @@
 const dayjs = require('dayjs')
+const { now } = require('./time')
 
 /**
  * Format pesan reminder untuk dikirim via WhatsApp
@@ -8,7 +9,7 @@ const dayjs = require('dayjs')
  * @returns {{ text: string, mentions: string[] }}
  */
 function formatReminderMessage(reminders) {
-  const today = dayjs().format('DD MMM YYYY')
+  const today = now().format('DD MMM YYYY')
 
   let msg = `🤖 *Reo'sBot Reminder*\n`
   msg += `📅 ${today}\n`
@@ -68,7 +69,7 @@ function formatSingleReminderMessage(r) {
  * Format satu reminder untuk !hari (dengan nomor)
  */
 function formatSingleReminder(r) {
-  const today = dayjs().startOf('day')
+  const today = now().startOf('day')
   const daysLeft = r.daysLeft !== undefined
     ? r.daysLeft
     : r.deadline.startOf('day').diff(today, 'day')
