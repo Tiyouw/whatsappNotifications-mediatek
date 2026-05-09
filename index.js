@@ -10,7 +10,7 @@ const { Boom } = require("@hapi/boom");
 const pino = require("pino");
 const qrcode = require("qrcode-terminal");
 const { startScheduler } = require("./src/scheduler");
-const { handleCommand } = require("./src/commandHandler");
+const { handleCommand, handleReaction } = require("./src/commandHandler");
 const {
   convertImageToSticker,
   convertVideoToSticker,
@@ -192,6 +192,17 @@ async function connectToWhatsApp() {
 
       // ── Handle teks → command handler ──────────────────────────────────
       await handleCommand(sock, msg);
+    }
+  });
+
+  // ── Handle emoji reactions → auto-done if ✅ on a reminder message ────
+  sock.ev.on("messages.reaction", async (reactions) => {
+    for (const reaction of reactions) {
+      try {
+        await handleReaction(sock, reaction);
+      } catch (err) {
+        console.error("❌ Error handling reaction:", err.message);
+      }
     }
   });
 

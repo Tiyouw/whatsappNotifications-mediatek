@@ -4,6 +4,7 @@ const { readFile } = require("fs/promises");
 const { getReminders, getDueReminders, markAsDone, addReminder, editReminder, deleteReminder } = require("./sheets");
 const { formatSingleReminder, parseMentions, resolveTarget } = require("./reminder");
 const { triggerManualCheck, sendWeeklySummary } = require("./scheduler");
+const reactionMap = require("./reactionMap");
 
 const DAMN_STICKER_PATH = path.resolve(__dirname, "..", "data", "damn.webp");
 const COMMAND_ALIASES = new Map([
@@ -136,6 +137,10 @@ async function handleCommand(sock, msg) {
             `!hapus [no] — hapus reminder\n` +
             `!summary — ringkasan semua reminder aktif\n` +
             `!damn — kirim sticker damn\n\n` +
+            `✅ *REACTION SHORTCUT*\n` +
+            `React ✅ pada pesan reminder pagi\n` +
+            `→ otomatis tandai reminder itu selesai\n` +
+            `(hanya berlaku untuk nomor yang diizinkan)\n\n` +
             `📝 *FORMAT !tambah*\n` +
             `!tambah task | YYYY-MM-DD | H-notif | catatan\n` +
             `Contoh: !tambah Rapat | 2026-05-10 | 3,1,0 | Di aula\n` +
@@ -422,4 +427,87 @@ async function sendDamnSticker(sock, jid, msg) {
   }
 }
 
-module.exports = { handleCommand, getMessageText, unwrapMessageContent };
+/**
+ * Handle emoji reactions on messages.
+ *
+ * Flow:
+ *   1. Reaction event fires from index.js
+ *   2. Extract the reacted-to messageId and the reactor's JID
+ *   3. Only process ✅ reactions from allowed numbers
+ *   4. Look up messageId in reactionMap → get reminderNo
+ *   5. Mark that reminder as done in Google Sheets
+ *   6. Send a confirmation message back to the chat
+ *
+ * Baileys reaction event shape:
+ * {
+ *   key: { remoteJid, id, participant? },   ← the REACTION message itself
+ *   reaction: {
+ *     key: { remoteJid, id, participant? }, ← the ORIGINAL message being reacted to
+ *     text: "✅"                            ← the emoji
+ *   }
+ * }
+ */
+async function handleReaction(sock, reaction) {
+  // The emoji that was reacted
+  const emoji = reaction.reaction?.text || "";
+
+  // Only care about ✅
+  if (emoji !== "✅") return;
+
+  // Who reacted — prefer participant (group), fall back to remoteJid (DM)
+  const reactorJid =
+    reaction.key?.participant ||
+    reaction.key?.remoteJid ||
+    "";
+
+  // The chat where the reaction happened
+  const chatJid = reaction.key?.remoteJid || "";
+
+  // Access control — same whitelist as commands
+  if (!isAllowed(reactorJid)) {
+    console.log(`⛔ Reaction ✅ dari non-allowed: ${reactorJid}`);
+    return;
+  }
+
+  // The messageId of the ORIGINAL reminder message that was reacted to
+  const originalMsgId = reaction.reaction?.key?.id;
+  if (!originalMsgId) return;
+
+  // Look up which reminder this message belongs to
+  const entry = reactionMap.get(originalMsgId);
+  if (!entry) {
+    // Not a tracked reminder message — silently ignore
+    return;
+  }
+
+  const { reminderNo } = entry;
+  console.log(`✅ Reaction dari ${reactorJid} → reminder [${reminderNo}]`);
+
+  // Fetch reminders and find the one matching reminderNo
+  const reminders = await getReminders();
+  const found = reminders.find((r) => r.globalNo === reminderNo);
+
+  if (!found) {
+    console.warn(`⚠️  Reminder [${reminderNo}] tidak ditemukan saat reaction`);
+    return;
+  }
+
+  const who = displayNameFromJid(reactorJid);
+  const result = await markAsDone(found, who);
+
+  if (result.success) {
+    // Remove from map so double-reacts don't re-trigger
+    reactionMap.remove(originalMsgId);
+
+    // Confirm in the same chat
+    await sock.sendMessage(chatJid, {
+      text: `✅ *[${reminderNo}] ${found.task}* ditandai selesai oleh ${who}! 🎉`,
+    });
+
+    console.log(`   ✅ Reminder [${reminderNo}] marked done via reaction by ${who}`);
+  } else {
+    console.error(`   ❌ Gagal mark done via reaction: ${result.reason}`);
+  }
+}
+
+module.exports = { handleCommand, handleReaction, getMessageText, unwrapMessageContent };
