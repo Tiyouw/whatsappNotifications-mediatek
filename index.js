@@ -39,16 +39,30 @@ function resolveLid(jid) {
 function isAllowed(jid) {
   if (!jid) return false;
 
-  // Resolve @lid to real JID first
-  const resolved = resolveLid(jid);
-
   const allowedRaw = process.env.ALLOWED_NUMBERS || process.env.OWNER_NUMBER || "";
   const allowedNumbers = allowedRaw
     .split(",")
     .map((n) => n.trim().replace(/\D/g, ""))
     .filter(Boolean);
 
-  return allowedNumbers.some((number) => resolved.includes(number));
+  // 1. Standard check — works for @s.whatsapp.net JIDs
+  if (allowedNumbers.some((number) => jid.includes(number))) return true;
+
+  // 2. Resolve @lid via contacts map, then check
+  if (jid.includes("@lid")) {
+    const resolved = lidToJid.get(jid);
+    if (resolved && allowedNumbers.some((number) => resolved.includes(number))) return true;
+
+    // 3. Last resort: check ALLOWED_LIDS env variable
+    // Set this in Replit Secrets after first seeing the @lid in the log
+    const allowedLids = (process.env.ALLOWED_LIDS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (allowedLids.some((lid) => jid.includes(lid.replace("@lid", "")))) return true;
+  }
+
+  return false;
 }
 
 async function connectToWhatsApp() {
@@ -73,21 +87,40 @@ async function connectToWhatsApp() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  // Build lid → JID map from contacts so we can resolve @lid identifiers
+  // ── Seed lid→JID map immediately from creds (available before any message) ──
+  // state.creds.me contains { id: "628xxx@s.whatsapp.net", lid: "12345@lid" }
+  // This handles the bot owner's own lid on first boot.
+  if (state.creds?.me?.id && state.creds?.me?.lid) {
+    lidToJid.set(state.creds.me.lid, state.creds.me.id);
+    console.log(`📇 Seeded lid from creds: ${state.creds.me.lid} → ${state.creds.me.id}`);
+  }
+
+  // ── Build lid→JID map from contacts events (fires on sync, populates all contacts) ──
   sock.ev.on("contacts.upsert", (contacts) => {
     for (const contact of contacts) {
-      // contact.id = "628xxx@s.whatsapp.net", contact.lid = "12345@lid"
       if (contact.id && contact.lid) {
         lidToJid.set(contact.lid, contact.id);
       }
     }
-    console.log(`📇 Contacts updated: ${lidToJid.size} lid mappings`)
+    console.log(`📇 Contacts upsert: ${lidToJid.size} total lid mappings`);
   });
 
   sock.ev.on("contacts.update", (updates) => {
     for (const update of updates) {
       if (update.id && update.lid) {
         lidToJid.set(update.lid, update.id);
+      }
+    }
+  });
+
+  // ── Also learn lids from incoming messages in real time ──────────────────
+  // When a message arrives with @lid remoteJid, check messageContextInfo
+  // which sometimes carries the real number. Also learn from group participant lists.
+  sock.ev.on("groups.update", (updates) => {
+    for (const update of updates) {
+      if (!update.participants) continue;
+      for (const p of update.participants) {
+        if (p.id && p.lid) lidToJid.set(p.lid, p.id);
       }
     }
   });
