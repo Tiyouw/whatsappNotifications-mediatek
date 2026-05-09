@@ -3,6 +3,7 @@ const dayjs = require('dayjs')
 const { getReminders, getDueReminders } = require('./sheets')
 const { formatReminderMessage, formatSingleReminderMessage, resolveTarget } = require('./reminder')
 const reactionMap = require('./reactionMap')
+const { now } = require('./time')
 
 let schedulerStarted = false
 
@@ -15,13 +16,13 @@ function startScheduler(sock) {
   console.log(`   (Default: setiap hari jam 08:00 WIB)`)
 
   cron.schedule(cronExpression, async () => {
-    console.log(`\n🔔 [${dayjs().format('DD/MM/YYYY HH:mm')}] Menjalankan cek reminder...`)
+    console.log(`\n🔔 [${now().format('DD/MM/YYYY HH:mm')}] Menjalankan cek reminder...`)
     await runReminderCheck(sock)
   }, { timezone: 'Asia/Jakarta' })
 
   // Weekly summary setiap Senin jam 07:00
   cron.schedule('0 7 * * 1', async () => {
-    console.log(`\n📋 [${dayjs().format('DD/MM/YYYY HH:mm')}] Mengirim weekly summary...`)
+    console.log(`\n📋 [${now().format('DD/MM/YYYY HH:mm')}] Mengirim weekly summary...`)
     await sendWeeklySummary(sock)
   }, { timezone: 'Asia/Jakarta' })
 
@@ -56,7 +57,7 @@ async function runReminderCheck(sock) {
       }
 
       // ── Header message (1 per target) ───────────────────────────────
-      const today = dayjs().format('DD MMM YYYY')
+      const today = now().format('DD MMM YYYY')
       const headerText =
         `🤖 *Reo'sBot Reminder*\n` +
         `📅 ${today} — ${reminders.length} reminder untuk hari ini\n` +
@@ -109,11 +110,11 @@ async function sendWeeklySummary(sock, targetJid = null) {
     const ownerJid = targetJid || `${process.env.OWNER_NUMBER}@s.whatsapp.net`
 
     if (reminders.length === 0) {
-      await sock.sendMessage(ownerJid, { text: `📋 *Weekly Summary - ${dayjs().format('DD MMM YYYY')}*\n\nTidak ada reminder aktif.` })
+      await sock.sendMessage(ownerJid, { text: `📋 *Weekly Summary - ${now().format('DD MMM YYYY')}*\n\nTidak ada reminder aktif.` })
       return
     }
 
-    const today = dayjs().startOf('day')
+    const today = now().startOf('day')
     const lines = reminders.map((r) => {
       const daysLeft = r.deadline.startOf('day').diff(today, 'day')
       const deadlineStr = r.deadline.format('DD MMM YYYY')
@@ -128,7 +129,7 @@ async function sendWeeklySummary(sock, targetJid = null) {
     })
 
     const message =
-      `📋 *Weekly Summary - ${dayjs().format('DD MMM YYYY')}*\n` +
+      `📋 *Weekly Summary - ${now().format('DD MMM YYYY')}*\n` +
       `Total: ${reminders.length} reminder aktif\n` +
       `${'─'.repeat(28)}\n\n` +
       lines.join('\n\n') +

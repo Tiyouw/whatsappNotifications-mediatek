@@ -5,6 +5,7 @@ const { getReminders, getDueReminders, markAsDone, addReminder, editReminder, de
 const { formatSingleReminder, parseMentions, resolveTarget } = require("./reminder");
 const { triggerManualCheck, sendWeeklySummary } = require("./scheduler");
 const reactionMap = require("./reactionMap");
+const { now } = require("./time");
 
 const DAMN_STICKER_PATH = path.resolve(__dirname, "..", "data", "damn.webp");
 const COMMAND_ALIASES = new Map([
@@ -215,7 +216,7 @@ async function handleCommand(sock, msg) {
           break;
         }
 
-        const today = dayjs().startOf("day");
+        const today = now().startOf("day");
         const allMentions = [];
 
         const lines = filtered.map((r) => {
@@ -443,7 +444,7 @@ async function handleCommand(sock, msg) {
           sock,
           senderJid,
           msg,
-          `📊 *Status Bot*\n\n` + `🟢 Status: Online\n` + `⏱️ Uptime: ${hours}j ${minutes}m\n` + `📋 Reminder aktif: ${reminders.length}\n` + `⏰ Scheduler: ${cronExpr}\n` + `📅 Waktu sekarang: ${dayjs().format("DD/MM/YYYY HH:mm")} WIB`,
+          `📊 *Status Bot*\n\n` + `🟢 Status: Online\n` + `⏱️ Uptime: ${hours}j ${minutes}m\n` + `📋 Reminder aktif: ${reminders.length}\n` + `⏰ Scheduler: ${cronExpr}\n` + `📅 Waktu sekarang: ${now().format("DD/MM/YYYY HH:mm")} WIB`,
         );
         break;
       }

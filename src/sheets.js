@@ -1,6 +1,7 @@
 const { google } = require("googleapis");
 const path = require("path");
 const dayjs = require("dayjs");
+const { now } = require("./time");
 
 let sheetsClient = null;
 
@@ -98,7 +99,7 @@ async function getReminders() {
 
 async function getDueReminders() {
   const reminders = await getReminders();
-  const today = dayjs().startOf("day");
+  const today = now().startOf("day");
   const dueList = [];
   const seen = new Set();
 
