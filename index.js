@@ -7,6 +7,7 @@ const {
   makeCacheableSignalKeyStore,
 } = require("@whiskeysockets/baileys");
 const { Boom } = require("@hapi/boom");
+const path = require("path");
 const pino = require("pino");
 const qrcode = require("qrcode-terminal");
 const { startScheduler } = require("./src/scheduler");
@@ -19,6 +20,30 @@ const {
   getMediaType,
   getMimeType,
 } = require("./src/stickerHandler");
+
+// ── Production-safe runtime path resolution ────────────────────────────
+// AUTH_DIR is the Baileys session folder. Locally it defaults to the
+// relative path "auth_info_baileys" to preserve pre-migration dev behavior.
+// On Fly.io it must be set (via fly.toml [env]) to an absolute path on the
+// mounted volume, typically /data/auth_info_baileys. If this check is
+// skipped and AUTH_DIR is missing or non-absolute in production, Baileys
+// would silently create a fresh session inside the ephemeral /app
+// filesystem and print a QR in the logs, which is unrecoverable because
+// the linked phone is no longer available to scan a new QR. Fail fast
+// here, at module load, before Baileys or the HTTP keep-alive ever starts.
+const AUTH_DIR = process.env.AUTH_DIR || "auth_info_baileys";
+if (process.env.NODE_ENV === "production") {
+  if (!process.env.AUTH_DIR || !path.isAbsolute(AUTH_DIR)) {
+    console.error(
+      `❌ FATAL: AUTH_DIR must be set to an absolute path when NODE_ENV=production ` +
+      `(got ${JSON.stringify(process.env.AUTH_DIR)}). ` +
+      `Check fly.toml [env] and run \`flyctl secrets list\` to confirm no secret ` +
+      `is shadowing it. Refusing to start to avoid creating a fresh WhatsApp ` +
+      `session on the ephemeral filesystem and printing a QR nobody can scan.`
+    );
+    process.exit(1);
+  }
+}
 
 // ── Keep-alive HTTP server for UptimeRobot ──────────────────────────
 const http = require('http');
@@ -77,7 +102,6 @@ function isAllowed(jid) {
 }
 
 async function connectToWhatsApp() {
-  const AUTH_DIR = process.env.AUTH_DIR || "auth_info_baileys";
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 

@@ -92,8 +92,16 @@ flyctl secrets set `
 Notes:
 
 - `DONE_REQUIRE_OWNER_APPROVAL`, `DONE_APPROVAL_TTL_MS`, `APPROVER_NUMBERS`, and `APPROVER_LABEL` are optional; omit them if you do not use the approval flow.
-- **Do NOT set `AUTH_DIR`, `REACTION_MAP_PATH`, `DAMN_STICKER_PATH`, or `GOOGLE_CREDENTIALS_PATH` via `flyctl secrets`.** Those are path values, not secrets, and they are already defined in `fly.toml`'s `[env]` block pointing at `/data/...`. Defining them as secrets too would be harmless but confusing; leave them out.
+- **Do NOT set `AUTH_DIR`, `REACTION_MAP_PATH`, `DAMN_STICKER_PATH`, or `GOOGLE_CREDENTIALS_PATH` via `flyctl secrets`.** Those are path values, not secrets, and they are already defined in `fly.toml`'s `[env]` block pointing at `/data/...`. A secret with the same name **silently overrides** the `[env]` value at runtime, and `flyctl secrets list` shows only key names (never values), so a stray `AUTH_DIR` secret is invisible in ordinary TOML diffs. If one ever gets set, removing the `[env]` entry will **not** undo it: you must `flyctl secrets unset AUTH_DIR --app $APP` explicitly.
 - `flyctl secrets set` triggers an app restart as soon as a machine exists. Before the first deploy the app has zero machines, so the secrets are just staged for when the machine boots.
+
+Immediately after running the secrets-set command above, verify that none of the path vars accidentally landed as secrets:
+
+```powershell
+flyctl secrets list --app $APP
+```
+
+The output lists the NAMES (not values) of every secret on the app. **None of `AUTH_DIR`, `REACTION_MAP_PATH`, `DAMN_STICKER_PATH`, or `GOOGLE_CREDENTIALS_PATH` should appear in this list.** If any of them do, run `flyctl secrets unset <NAME> --app $APP` immediately. A shadowing secret that points to a non-`/data` path would silently break the session on the next boot (the bot's fail-fast check in production will catch a missing or relative value, but an absolute-but-wrong path like `/tmp/foo` would slip through).
 
 ---
 
@@ -115,7 +123,7 @@ flyctl machine run alpine `
   -- sleep 3600
 ```
 
-Grab the machine ID it prints (e.g. `148e123456d789`) — you will destroy this machine in step 7. Then open the SFTP shell:
+Grab the machine ID it prints (e.g. `148e123456d789`) — you will destroy this machine in step 8, after the ownership-fix step. Then open the SFTP shell:
 
 ```powershell
 flyctl ssh sftp shell --app $APP
@@ -127,10 +135,10 @@ put C:\Users\<you>\wa-bot-migration\credentials.json         /data/credentials.j
 quit
 ```
 
-Now extract the tars in place:
+Now extract the tars in place. The `--no-same-owner` flag tells tar to ignore the UID/GID baked into the archive (which reflects whatever user owned the files on the source host, almost certainly not UID 1000 that the container runs as) and extract as the current user instead. We still have to chown afterwards (next step) to switch ownership from root to the `node` user, but `--no-same-owner` avoids getting files owned by random UIDs from the source host:
 
 ```powershell
-flyctl ssh console --app $APP --command "sh -lc 'cd /data && tar -xzf auth_info_baileys.tar.gz && tar -xzf data_backup.tar.gz && rm auth_info_baileys.tar.gz data_backup.tar.gz && ls -lR /data'"
+flyctl ssh console --app $APP --command "sh -lc 'cd /data && tar --no-same-owner -xzf auth_info_baileys.tar.gz && tar --no-same-owner -xzf data_backup.tar.gz && rm auth_info_baileys.tar.gz data_backup.tar.gz && ls -lR /data'"
 ```
 
 **Expected final layout:**
@@ -183,7 +191,27 @@ If any file is missing or zero bytes, re-run the `put` commands in step 5 and ex
 
 ---
 
-## 7. Destroy the seeder machine
+## 7. Fix volume ownership (critical)
+
+The seeder ran `flyctl ssh console` as **root** and `tar -xzf` as root, so everything under `/data` is currently root-owned. The real bot image drops to UID 1000 (the `node` user) before running `index.js`. Without this step:
+
+- `useMultiFileAuthState('/data/auth_info_baileys')` cannot rewrite `pre-key-*.json` / `session-*.json` / `app-state-sync-*.json` when Baileys rotates keys, because those writes are UID-1000 into a root-owned directory. Baileys silently swallows the `EACCES`, the keys drift, and the session force-logs-out hours or days later.
+- `reactionMap.js` `save()` cannot create `/data/reactionMap.json` because `/data` itself is root-owned, so every reaction fails with `❌ reactionMap: failed to write file: EACCES` (visible in `flyctl logs` but non-fatal).
+- Even files that happened to extract with a "correct" UID (if the tar baked in one) would not match the container's UID 1000 and would still `EACCES`.
+
+Chown the whole volume to UID 1000 (the `node` user baked into `node:20-bookworm-slim`) **while the seeder is still the machine attached to the volume**:
+
+```powershell
+flyctl ssh console --app $APP --command "sh -lc 'chown -R 1000:1000 /data && chmod -R u+rwX,g+rX,o+rX /data && ls -lan /data'"
+```
+
+The `ls -lan` at the end should show every entry owned by `1000 1000` (numeric, since the seeder image does not necessarily have a `node` user in `/etc/passwd`). If any entry still shows `0 0` (root), re-run the command.
+
+Only after this succeeds should you continue to step 8 and destroy the seeder.
+
+---
+
+## 8. Destroy the seeder machine
 
 Fly volumes are **single-attacher**: only one machine can mount a given volume at a time. If the seeder from step 5 is still alive, the real bot's machine will fail to start because it cannot mount `wa_data`. Kill the seeder first:
 
@@ -195,7 +223,7 @@ flyctl machine destroy <machine-id> --force --app $APP
 
 ---
 
-## 8. Deploy the real bot
+## 9. Deploy the real bot
 
 ```powershell
 flyctl deploy --app $APP
@@ -210,7 +238,7 @@ Watch the output. You should see:
 
 ---
 
-## 9. Verify there is no QR in the logs
+## 10. Verify there is no QR in the logs
 
 ```powershell
 flyctl logs --app $APP
@@ -224,6 +252,27 @@ flyctl logs --app $APP
 📇 Seeded lid from creds: 125812544147601@lid
 ✅ WhatsApp berhasil terhubung!
 ```
+
+**Another bad sign to watch for** (path env vars are missing or relative, so the bot refuses to start rather than print a QR on ephemeral storage):
+
+```
+❌ FATAL: AUTH_DIR must be set to an absolute path when NODE_ENV=production ...
+```
+
+or
+
+```
+❌ FATAL: REACTION_MAP_PATH must be set to an absolute path when NODE_ENV=production ...
+```
+
+If you see either of those, `fly.toml`'s `[env]` block has been corrupted or a secret is shadowing the path. Verify:
+
+```powershell
+flyctl config show --app $APP       # confirms the [env] block reached the machine
+flyctl secrets list --app $APP      # NONE of AUTH_DIR / REACTION_MAP_PATH / DAMN_STICKER_PATH / GOOGLE_CREDENTIALS_PATH should appear here
+```
+
+If a path var appears in the secrets list, `flyctl secrets unset <NAME> --app $APP` to remove it, then redeploy.
 
 **Bad sign** (the seed went wrong — stop immediately):
 
@@ -250,7 +299,7 @@ Do **not** just scan the QR on the first machine with a fresh device — it will
 
 ---
 
-## 10. Cost expectations
+## 11. Cost expectations
 
 - `shared-cpu-1x`, 512MB, in `sin`, running 24/7 (`min_machines_running = 1`): roughly **$2/month**.
 - 1GB persistent volume in `sin`: roughly **$0.15/month**.
@@ -260,7 +309,7 @@ Total: budget ~$2–3/month. Configure a payment method via the Fly web dashboar
 
 ---
 
-## 11. Session portability caveat
+## 12. Session portability caveat
 
 WhatsApp sometimes force-logs-out a linked device when its source IP changes region abruptly. `sin` (Singapore) is geographically close to most Asian hosting (Replit, typical VPS), so the risk is low but non-zero. Two mitigations:
 
@@ -269,7 +318,7 @@ WhatsApp sometimes force-logs-out a linked device when its source IP changes reg
 
 ---
 
-## 12. Day-2 operations cheatsheet
+## 13. Day-2 operations cheatsheet
 
 ```powershell
 # Stream logs (Ctrl-C to exit)
@@ -296,7 +345,7 @@ flyctl secrets list -a $APP
 
 ---
 
-## 13. Scaling memory
+## 14. Scaling memory
 
 If you decide 512MB is overkill and want to save a dollar a month:
 

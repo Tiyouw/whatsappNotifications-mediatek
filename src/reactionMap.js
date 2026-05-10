@@ -27,6 +27,21 @@ const path = require('path')
 
 function resolveMapPath() {
   const raw = process.env.REACTION_MAP_PATH
+  if (process.env.NODE_ENV === 'production') {
+    // On Fly.io the volume mount is at /data, owned by UID 1000. A missing
+    // or relative REACTION_MAP_PATH would resolve under /app (ephemeral) and
+    // silently lose the messageId -> reminderNo map on every deploy. Crash
+    // hard at module load instead so the misconfiguration is obvious in
+    // `flyctl logs` rather than surfacing as reactions silently stopping.
+    if (!raw || !path.isAbsolute(raw)) {
+      const msg = '❌ FATAL: REACTION_MAP_PATH must be set to an absolute path when ' +
+        `NODE_ENV=production (got ${JSON.stringify(raw)}). Check fly.toml [env] ` +
+        'and run `flyctl secrets list` to confirm no secret is shadowing it.'
+      console.error(msg)
+      process.exit(1)
+    }
+    return raw
+  }
   if (!raw) return path.resolve(__dirname, '..', 'data', 'reactionMap.json')
   return path.isAbsolute(raw) ? raw : path.resolve(__dirname, '..', raw)
 }
