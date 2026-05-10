@@ -1,0 +1,52 @@
+# ── Dependencies ──────────────────────────────────────────────
+# Rebuilt inside the image via `npm ci`.
+node_modules
+npm-debug.log
+*.log
+
+# ── Secrets ───────────────────────────────────────────────────
+# Never bake creds into the image. Secrets go through `fly secrets set`
+# (env vars) and credentials.json lives on the Fly volume at /data.
+.env
+.env.*
+credentials.json
+
+# ── Volume-backed runtime state (CRITICAL) ────────────────────
+# auth_info_baileys/ is WhatsApp session state; data/ holds the sticker
+# and reactionMap.json. Both live on the Fly volume mounted at /data.
+# If baked into the image, every `fly deploy` would overwrite the rotated
+# session state and eventually break the WhatsApp login (the user cannot
+# re-scan a QR on a headless server). data/damn.webp is tracked in git
+# but must still be excluded here — it is uploaded to the volume separately.
+auth_info_baileys/
+data/
+
+# ── Out of scope for this image ───────────────────────────────
+# Dashboard is a separate Next.js app deployed to Vercel.
+dashboard/
+
+# ── Dev tooling / VCS / editor noise ──────────────────────────
+.git
+.gitignore
+.github/
+.kiro/
+.agents/
+.vscode/
+.idea/
+
+# ── Platform configs not needed at runtime ────────────────────
+.replit
+replit.nix
+scripts/
+
+# ── Docs ──────────────────────────────────────────────────────
+README.md
+DEPLOYMENT.md
+
+# ── Self / deploy configs ─────────────────────────────────────
+# The Dockerfile is used by the builder, not the runtime. fly.toml is
+# consumed by flyctl, not by the container. Excluding both keeps the
+# image leaner.
+Dockerfile
+.dockerignore
+fly.toml

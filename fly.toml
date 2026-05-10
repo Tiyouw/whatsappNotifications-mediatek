@@ -1,0 +1,74 @@
+# fly.toml — WhatsApp reminder bot on Fly.io
+#
+# Deployment notes (full runbook in DEPLOYMENT.md):
+#   * Region `sin` (Singapore) is the closest Fly region to Jakarta.
+#   * A single persistent volume named `wa_data` is mounted at /data. It holds
+#     the Baileys session (auth_info_baileys/), the Google service-account
+#     credentials (credentials.json), the sticker binary (damn.webp), and the
+#     reactionMap.json. The volume MUST be created and seeded before the first
+#     `fly deploy`, otherwise Baileys prints a QR that nobody can scan.
+#   * Only non-secret, non-rotating values live in [env]. Everything listed in
+#     .env.example (OWNER_NUMBER, SPREADSHEET_ID, NUMBER_NAME_MAP, etc.) is set
+#     via `fly secrets set` — they are encrypted at rest on Fly and injected as
+#     environment variables at runtime.
+#   * `auto_stop_machines = false` + `min_machines_running = 1` keeps the bot
+#     running 24/7 so the daily 08:00 WIB cron + reactions stay responsive.
+
+app = "wa-reminder-bot"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Non-secret runtime env. Paths point at the mounted Fly volume so the bot
+# persists session + credentials across deploys. The path defaults in the
+# code (./auth_info_baileys, ./data/reactionMap.json) are for local dev.
+[env]
+  NODE_ENV = "production"
+  TZ = "Asia/Jakarta"
+  AUTH_DIR = "/data/auth_info_baileys"
+  REACTION_MAP_PATH = "/data/reactionMap.json"
+  DAMN_STICKER_PATH = "/data/damn.webp"
+  GOOGLE_CREDENTIALS_PATH = "/data/credentials.json"
+
+# Persistent volume. Create once with:
+#   flyctl volumes create wa_data --size 1 --region sin --yes
+# The `source` must match the volume name exactly.
+[[mounts]]
+  source = "wa_data"
+  destination = "/data"
+
+# HTTP keep-alive exposed by index.js on port 3000. Fly's edge handles TLS;
+# the container only speaks plain HTTP internally.
+[[services]]
+  protocol = "tcp"
+  internal_port = 3000
+  processes = ["app"]
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "get"
+    path = "/"
+    protocol = "http"
+
+# Machine size. 512MB gives sharp + ffmpeg enough headroom during
+# video-to-sticker conversion; 256MB risks OOM. Scale down later with:
+#   flyctl scale memory 256 -a wa-reminder-bot
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"
