@@ -77,7 +77,8 @@ function isAllowed(jid) {
 }
 
 async function connectToWhatsApp() {
-  const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
+  const AUTH_DIR = process.env.AUTH_DIR || "auth_info_baileys";
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
   console.log("🔌 Menghubungkan ke WhatsApp...");
@@ -160,7 +161,7 @@ async function connectToWhatsApp() {
         console.log(`🔄 Reconnect ke-${reconnectCount} dalam ${delay / 1000}s...`);
         setTimeout(connectToWhatsApp, delay);
       } else {
-        console.log("🚪 Logged out. Hapus folder auth_info_baileys dan jalankan ulang.");
+        console.log(`🚪 Logged out. Hapus folder ${AUTH_DIR} dan jalankan ulang.`);
         process.exit(0);
       }
     }

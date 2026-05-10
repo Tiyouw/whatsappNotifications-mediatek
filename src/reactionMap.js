@@ -25,7 +25,13 @@
 const fs = require('fs')
 const path = require('path')
 
-const MAP_PATH = path.resolve(__dirname, '..', 'data', 'reactionMap.json')
+function resolveMapPath() {
+  const raw = process.env.REACTION_MAP_PATH
+  if (!raw) return path.resolve(__dirname, '..', 'data', 'reactionMap.json')
+  return path.isAbsolute(raw) ? raw : path.resolve(__dirname, '..', raw)
+}
+
+const MAP_PATH = resolveMapPath()
 const MAX_AGE_DAYS = 14   // keep entries for 14 days max
 
 // ── In-memory cache ────────────────────────────────────────────────
