@@ -14,7 +14,7 @@
 #   * `auto_stop_machines = false` + `min_machines_running = 1` keeps the bot
 #     running 24/7 so the daily 08:00 WIB cron + reactions stay responsive.
 
-app = "wa-reminder-bot"
+app = "reo-on-cavern"
 primary_region = "sin"
 
 [build]
