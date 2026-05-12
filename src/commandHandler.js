@@ -324,6 +324,19 @@ async function handleCommand(sock, msg) {
         await handleSetDamn(sock, senderJid, msg);
         break;
 
+      // ── !sticker ───────────────────────────────────────────────────────
+      case "sticker":
+        await reply(
+          sock,
+          senderJid,
+          msg,
+          `🎨 *!sticker* — cara pakai:\n\n` +
+            `Pribadi: kirim gambar/video → langsung jadi sticker\n` +
+            `Grup: kirim media + caption !sticker\n` +
+            `Video max 10 detik`,
+        );
+        break;
+
       // ── !done ──────────────────────────────────────────────────────────
       case "done": {
         if (!argStr) {
