@@ -21,6 +21,7 @@ const COMMAND_ALIASES = new Map([
   ["dammit", "damn"],
   ["setdam", "setdamn"],
   ["setdamm", "setdamn"],
+  ["stiker", "sticker"],
 ]);
 
 /**
@@ -226,7 +227,8 @@ async function handleCommand(sock, msg) {
             `tandai reminder itu selesai (hanya nomor diizinkan)\n\n` +
             `🎨 *STICKER*\n` +
             `Pribadi: kirim gambar/video → langsung jadi sticker\n` +
-            `Grup: kirim media + caption !sticker\n` +
+            `Grup: kirim media + caption !sticker, atau\n` +
+            `balas gambar/video dengan !sticker\n` +
             `Video max 10 detik\n\n` +
             `😤 *DAMN STICKER*\n` +
             `!damn — kirim sticker !damn\n` +
@@ -243,8 +245,8 @@ async function handleCommand(sock, msg) {
             `📝 *FORMAT !edit*\n` +
             `Field: task, deadline, notif, catatan\n` +
             `Contoh: !edit 3 deadline 2026-06-01\n\n` +
-            `🔒 Reminder auto-import (tab Reminders) tidak bisa\n` +
-            `   di-!done/!edit/!hapus — ubah langsung di Sheet`,
+            `🔒 Reminder auto-import (tab Reminders) bisa\n` +
+            `   ditandai selesai lewat !done atau react ✅ oleh nomor diizinkan`,
         );
         break;
 
@@ -280,7 +282,7 @@ async function handleCommand(sock, msg) {
           : !argStr || argStr.toLowerCase() === "semua"
             ? "Semua"
             : `Filter: ${argStr}`;
-        const fullText = `📋 *Reminder Aktif — ${contextLabel}*\n\n${lines.join("\n\n")}\n\n_🔒 = auto-import, ubah status langsung di Sheet_`;
+        const fullText = `📋 *Reminder Aktif — ${contextLabel}*\n\n${lines.join("\n\n")}\n\n_🔒 = auto-import, bisa ditandai selesai lewat bot oleh nomor diizinkan_`;
         await reply(sock, senderJid, msg, fullText, [...new Set(allMentions)]);
         break;
       }
@@ -326,15 +328,7 @@ async function handleCommand(sock, msg) {
 
       // ── !sticker ───────────────────────────────────────────────────────
       case "sticker":
-        await reply(
-          sock,
-          senderJid,
-          msg,
-          `🎨 *!sticker* — cara pakai:\n\n` +
-            `Pribadi: kirim gambar/video → langsung jadi sticker\n` +
-            `Grup: kirim media + caption !sticker\n` +
-            `Video max 10 detik`,
-        );
+        await handleStickerCommand(sock, senderJid, msg);
         break;
 
       // ── !done ──────────────────────────────────────────────────────────
@@ -550,6 +544,66 @@ async function sendDamnSticker(sock, jid, msg) {
   } catch (err) {
     console.error("❌ Gagal kirim !damn sticker:", err.message);
     await reply(sock, jid, msg, "❌ Sticker !damn belum tersedia di server.");
+  }
+}
+
+/**
+ * Convert media into a sticker from either:
+ *   - media attached directly to the invoking message, or
+ *   - media quoted by a reply that says !sticker.
+ */
+async function handleStickerCommand(sock, jid, msg) {
+  let sourceMsg = getMediaType(msg) ? msg : null;
+
+  if (!sourceMsg) {
+    const quoted = buildQuotedMsg(msg);
+    if (quoted && getMediaType(quoted)) {
+      sourceMsg = quoted;
+    }
+  }
+
+  if (!sourceMsg) {
+    await reply(
+      sock,
+      jid,
+      msg,
+      `🎨 *!sticker* — cara pakai:\n\n` +
+        `• Balas gambar/video dengan !sticker\n` +
+        `• Kirim gambar/video dengan caption !sticker\n` +
+        `• Di chat pribadi, kirim gambar/video langsung\n\n` +
+        `Video max 10 detik`,
+    );
+    return;
+  }
+
+  await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } }).catch(() => {});
+
+  let success = false;
+  try {
+    const buffer = await getMediaBuffer(sock, sourceMsg);
+    if (!buffer) {
+      await reply(sock, jid, msg, "❌ Gagal download media.");
+      return;
+    }
+
+    const mimeType = getMimeType(sourceMsg);
+    const mediaType = getMediaType(sourceMsg);
+    const isVideo = mediaType === "video" || mimeType.startsWith("video/");
+
+    const stickerBuffer = isVideo
+      ? await convertVideoToSticker(buffer, mimeType)
+      : await convertImageToSticker(buffer);
+
+    await sock.sendMessage(jid, { sticker: stickerBuffer }, { quoted: msg });
+    success = true;
+    console.log(`✅ Sticker ${isVideo ? "video" : "gambar"} berhasil dikirim via !sticker reply`);
+  } catch (err) {
+    console.error("❌ Gagal buat sticker via !sticker:", err.message);
+    await reply(sock, jid, msg, `❌ Gagal buat sticker: ${err.message}`);
+  } finally {
+    await sock
+      .sendMessage(jid, { react: { text: success ? "✅" : "❌", key: msg.key } })
+      .catch(() => {});
   }
 }
 

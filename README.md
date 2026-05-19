@@ -46,7 +46,7 @@ npm install
 
 Buat 2 tab di spreadsheet:
 
-**Tab `Reminders`** ← ImportRange dari sheet HUMAS (read-only, tidak bisa !done/!edit/!hapus)
+**Tab `Reminders`** ← ImportRange dari sheet HUMAS. Bot tetap bisa mengubah status lewat command seperti `!done` untuk admin/owner yang diizinkan.
 
 **Tab `MyReminders`** ← Ditulis bot via `!tambah`
 
@@ -126,6 +126,7 @@ Scan QR yang muncul di terminal dengan WhatsApp nomor kedua:
 | `!summary` | Ringkasan semua reminder aktif |
 | `!damn` | Kirim sticker damn |
 | `!setdamn` | Update sticker `!damn` (reply ke gambar/video dengan `!setdamn`, atau kirim media dengan caption `!setdamn`) |
+| `!sticker` | Buat sticker dari gambar/video yang di-reply, atau dari media dengan caption `!sticker` |
 
 ### Format `!tambah`
 ```
@@ -178,7 +179,7 @@ Contoh:
 | Konteks | Cara Pakai |
 |---|---|
 | Chat pribadi ke bot | Kirim gambar/video → otomatis jadi sticker |
-| Di grup | Kirim gambar/video dengan caption `!sticker` |
+| Di grup | Kirim gambar/video dengan caption `!sticker`, atau reply gambar/video dengan `!sticker` |
 
 - **Gambar**: JPG, PNG → sticker WebP 512x512
 - **Video**: MP4, WebM → animated sticker WebP, max 10 detik
@@ -204,8 +205,8 @@ Contoh:
 
 ## 📊 Struktur Google Sheet
 
-### Tab `Reminders` (auto-import / read-only dari bot)
-Data dari ImportRange sheet lain. Bot membaca tapi tidak bisa menulis.
+### Tab `Reminders` (auto-import)
+Data dari ImportRange sheet lain. Bot membaca reminder dari tab ini dan admin/owner yang diizinkan bisa menandai status selesai lewat command seperti `!done`.
 - Baris pembatas bulan (MEI, APRIL, dll) otomatis di-skip
 - Kolom Target kosong → pakai `DEFAULT_GROUP_JID`
 - Kolom Status kosong → dianggap `active`
@@ -239,7 +240,7 @@ Tulis `@628xxxxxxxxxx` di kolom Catatan → bot akan mention orang tersebut di W
 - Hanya nomor di `ALLOWED_NUMBERS` yang bisa pakai bot
 - WhatsApp kadang menggunakan format `@lid` (Linked ID) sebagai pengganti nomor telepon. Dalam kasus ini, bot mengecek `ALLOWED_LIDS` untuk otorisasi akses
 - Untuk mengetahui LID-mu: kirim pesan ke bot, jika ditolak, cek log console bot -- LID yang ditolak akan tercetak di sana
-- Reminder dari tab `Reminders` (auto-import) bersifat **read-only** — tidak bisa di-`!done`, `!edit`, atau `!hapus` dari bot
+- Reminder dari tab `Reminders` (auto-import) bisa ditandai selesai lewat bot oleh nomor yang diizinkan, misalnya dengan `!done [no]` atau react ✅ pada pesan reminder
 - Bot tidak akan merespons pesan dari nomor yang tidak terdaftar
 
 ---
