@@ -1,0 +1,118 @@
+{
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\index.js": {
+    "mtime": 1779213927.2115235,
+    "hash": "ae2502f00aa3b514f8344a7e214a5f67"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\next.config.js": {
+    "mtime": 1778401913.5321686,
+    "hash": "637627b58f1fe94b25a0030dc3fc9ee6"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\postcss.config.js": {
+    "mtime": 1778401913.536697,
+    "hash": "9a248c780e4c76f85b0f492f63a3d417"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\tailwind.config.ts": {
+    "mtime": 1778401913.5417135,
+    "hash": "ec372fe05054bf85f9e9e2405e9d56b9"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\app\\layout.tsx": {
+    "mtime": 1778401913.5261629,
+    "hash": "679532776777ff4518534c5c1793e388"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\app\\page.tsx": {
+    "mtime": 1778401913.5281696,
+    "hash": "f5753af6140821c74bfff65a18957a4f"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\app\\api\\reminders\\route.ts": {
+    "mtime": 1778401913.5251656,
+    "hash": "d2dd4c60e289f934a5f0898f3948cb69"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\components\\FilterTabs.tsx": {
+    "mtime": 1778401913.5291622,
+    "hash": "c4de531d9f9a899c2c6150efada48208"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\components\\ReminderCard.tsx": {
+    "mtime": 1778401913.5301666,
+    "hash": "fd2da36885c5b0a8f718efbdeef13b09"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\lib\\sheets.ts": {
+    "mtime": 1778401913.5311677,
+    "hash": "6123d5d5f11d57d8659867866faa2792"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\public\\dashboard.js": {
+    "mtime": 1779236254.0636,
+    "hash": "da70c3f1c71e18466a9460db009417c0"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\scripts\\install-service.ps1": {
+    "mtime": 1776615866.9088275,
+    "hash": "2c3408958a680a52d4552003bc36bae6"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\scripts\\uninstall-service.ps1": {
+    "mtime": 1776615866.9121938,
+    "hash": "c28ead958020ee1394dd10ec157fe4f4"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\src\\commandHandler.js": {
+    "mtime": 1779212524.6772146,
+    "hash": "dbf0493e04e58cdbd388dda10144b327"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\src\\dashboardServer.js": {
+    "mtime": 1779236347.577011,
+    "hash": "c65b415702301967243486c7a35d3a0e"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\src\\reactionMap.js": {
+    "mtime": 1778401913.5502515,
+    "hash": "d9f79c9180b5e16a741e7ee5815fb520"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\src\\reminder.js": {
+    "mtime": 1778401913.5512507,
+    "hash": "acc86e1d8021b444b776da83721123d3"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\src\\scheduler.js": {
+    "mtime": 1778401913.5522509,
+    "hash": "4ac31b1a5c5309550c862c324def0cec"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\src\\sheets.js": {
+    "mtime": 1779213926.8946593,
+    "hash": "de581f0c14f094fef9f893457fd6b8a9"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\src\\stickerHandler.js": {
+    "mtime": 1778207002.7164514,
+    "hash": "eed42de863db27ee8704f8411b6059eb"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\src\\time.js": {
+    "mtime": 1778401913.5557683,
+    "hash": "0f58668ef413088f65d9dcf5fc264481"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\AGENTS.md": {
+    "mtime": 1779238816.6122096,
+    "hash": "22e263ebb43e933f6bc6423bf78e892f"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\DEPLOYMENT.md": {
+    "mtime": 1779214106.187014,
+    "hash": "615bc513795aaf6cf41420930f154159"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\README.md": {
+    "mtime": 1779236401.4889822,
+    "hash": "1ae2074565e326d7a0674ab70bfb2063"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\public\\dashboard.html": {
+    "mtime": 1779236174.7651985,
+    "hash": "56da1c40812b406ffb78bafb5c436a1d"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\raw\\2026-05-20-dashboard-and-deploy-context.md": {
+    "mtime": 1779238535.015863,
+    "hash": "229ae21daef09bb5494775ec4cceea9e"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\public\\icons\\icon-192x192.png": {
+    "mtime": 1778401913.538704,
+    "hash": "2d513c8ec1c0f9b4cdd3fc6aab25d860"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\dashboard\\public\\icons\\icon-512x512.png": {
+    "mtime": 1778401913.539699,
+    "hash": "4e9f2ef684c5304b1dabfa62c1b4ca3a"
+  },
+  "E:\\wa-reminder-bot\\wa-reminder-bot\\data\\damn.webp": {
+    "mtime": 1777617217.0616236,
+    "hash": "3663ac505ced3561fabb464cc8c80765"
+  }
+}

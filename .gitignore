@@ -11,3 +11,6 @@ tools/nssm/
 # Replit
 .replit.nix.lock
 .cache/
+
+# graphify generated cache
+graphify-out/cache/
