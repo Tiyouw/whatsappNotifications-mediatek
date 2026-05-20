@@ -33,7 +33,7 @@ function isValidRow(row) {
   return true;
 }
 
-async function readTab(sheets, tabName, source = "auto") {
+async function readTab(sheets, tabName, source = "auto", options = {}) {
   try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
@@ -50,7 +50,7 @@ async function readTab(sheets, tabName, source = "auto") {
       }
 
       const status = row[COL.STATUS]?.toLowerCase().trim() || "active";
-      if (status === "done" || status === "skip") continue;
+      if (!options.includeInactive && (status === "done" || status === "skip")) continue;
 
       const notifyDaysRaw = row[COL.NOTIFY] || process.env.NOTIFY_DAYS_BEFORE || "7,3,1,0";
       const notifyDays = notifyDaysRaw
@@ -83,12 +83,15 @@ async function readTab(sheets, tabName, source = "auto") {
   }
 }
 
-async function getReminders() {
+async function getReminders(options = {}) {
   const sheets = await getSheetsClient();
   const autoTab = process.env.SHEET_REMINDER_TAB || "Reminders";
   const manualTab = process.env.SHEET_MANUAL_TAB || "MyReminders";
 
-  const [autoReminders, manualReminders] = await Promise.all([readTab(sheets, autoTab, "auto"), readTab(sheets, manualTab, "manual")]);
+  const [autoReminders, manualReminders] = await Promise.all([
+    readTab(sheets, autoTab, "auto", options),
+    readTab(sheets, manualTab, "manual", options),
+  ]);
 
   const all = [...autoReminders, ...manualReminders];
   all.forEach((r, i) => {

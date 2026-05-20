@@ -174,6 +174,29 @@ Contoh:
 
 ---
 
+## 🖥️ Dashboard
+
+Saat deploy di Fly.io, root app (`https://reo-on-cavern.fly.dev/`) menampilkan dashboard ringan bawaan bot. Dashboard ini bisa:
+
+- melihat semua reminder, termasuk `active`, `done`, dan `skip`
+- filter reminder aktif/done/overdue
+- menandai reminder sebagai `done`
+- skip reminder
+- membuat reminder baru ke tab `MyReminders`
+- trigger kirim reminder hari ini atau weekly summary dari kartu aksi dengan konfirmasi
+- pagination di tab Reminders supaya daftar panjang tidak perlu scroll jauh
+- tab Stickers untuk preview, update, dan test kirim sticker `!damn`
+
+Dashboard dilindungi token. Set di Fly:
+
+```powershell
+flyctl secrets set DASHBOARD_TOKEN="use-a-long-random-password" --app reo-on-cavern
+```
+
+Lalu buka `https://reo-on-cavern.fly.dev/` dan masukkan token tersebut.
+
+---
+
 ## 🎨 Sticker
 
 | Konteks | Cara Pakai |

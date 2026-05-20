@@ -22,7 +22,8 @@ auth_info_baileys/
 data/
 
 # ── Out of scope for this image ───────────────────────────────
-# Dashboard is a separate Next.js app deployed to Vercel.
+# The old Next.js dashboard is separate. The lightweight Fly dashboard lives
+# in public/ and is intentionally copied into the bot image.
 dashboard/
 
 # ── Dev tooling / VCS / editor noise ──────────────────────────

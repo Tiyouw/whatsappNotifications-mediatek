@@ -12,6 +12,7 @@ const pino = require("pino");
 const qrcode = require("qrcode-terminal");
 const { startScheduler } = require("./src/scheduler");
 const { handleCommand, handleReaction } = require("./src/commandHandler");
+const { startDashboardServer } = require("./src/dashboardServer");
 const {
   convertImageToSticker,
   convertVideoToSticker,
@@ -45,21 +46,14 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
-// ── Keep-alive HTTP server for UptimeRobot ──────────────────────────
-const http = require('http');
-http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Bot is running');
-}).listen(3000, () => {
-  console.log('🌐 Keep-alive server listening on port 3000');
-});
-
 const logger = pino({ level: "silent" });
 
 let sock = null;
 let schedulerStarted = false;
 let isFirstConnect = true;
 let reconnectCount = 0;
+
+startDashboardServer(() => sock);
 
 // lid → phone number map, built from contacts events
 // e.g. { "125812544147601@lid": "6282132341102@s.whatsapp.net" }

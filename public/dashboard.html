@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ReoOnCavern</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/dashboard.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">R</span>
+          <div>
+            <strong>ReoOnCavern</strong>
+            <small>Reminder control</small>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-item active" type="button" data-view="dashboard">Dashboard</button>
+          <button class="nav-item" type="button" data-view="stickers">Stickers</button>
+          <button class="nav-item" type="button" data-view="reminders">Reminders</button>
+          <button class="nav-item" type="button" data-view="logout">Logout</button>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="dot"></span>
+          <span id="connectionLabel">Checking API</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="viewEyebrow">WhatsApp command center</p>
+            <h1 id="viewTitle">ReoOnCavern</h1>
+          </div>
+          <div class="top-actions">
+            <button id="refreshBtn" class="ghost-button" type="button">Refresh</button>
+          </div>
+        </header>
+
+        <section id="authPanel" class="panel auth-panel hidden">
+          <div>
+            <p class="eyebrow">Protected dashboard</p>
+            <h2>Enter dashboard token</h2>
+            <p class="muted">Use the value from Fly secret <code>DASHBOARD_TOKEN</code> or <code>API_SECRET</code>.</p>
+          </div>
+          <form id="authForm" class="auth-form">
+            <input id="tokenInput" type="password" autocomplete="current-password" placeholder="Dashboard token" />
+            <button type="submit">Unlock</button>
+          </form>
+        </section>
+
+        <section class="view active" data-view-panel="dashboard">
+          <section class="stats-grid">
+            <article class="metric-card glow">
+              <p class="card-label">Active Reminders</p>
+              <strong id="activeCount">0</strong>
+              <span id="dueTodayCount">0 due today</span>
+            </article>
+            <article class="metric-card">
+              <p class="card-label">Overdue</p>
+              <strong id="overdueCount">0</strong>
+              <span>Needs attention</span>
+            </article>
+            <button class="metric-card action-card" type="button" data-action="send-due">
+              <p class="card-label">Send Due</p>
+              <strong>Now</strong>
+              <span>Confirm before sending</span>
+            </button>
+            <button class="metric-card action-card" type="button" data-action="weekly-summary">
+              <p class="card-label">Weekly Summary</p>
+              <strong>Send</strong>
+              <span>Confirm before sending</span>
+            </button>
+          </section>
+
+          <section class="content-grid">
+            <article class="panel reminders-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Snapshot</p>
+                  <h2>Upcoming reminders</h2>
+                </div>
+                <button class="small-button" type="button" data-view-shortcut="reminders">Open full list</button>
+              </div>
+              <div id="dashboardList" class="reminder-list compact"></div>
+            </article>
+
+            <aside class="right-stack">
+              <article class="panel">
+                <div class="panel-head">
+                  <div>
+                    <p class="eyebrow">Quick command</p>
+                    <h2>New reminder</h2>
+                  </div>
+                </div>
+                <form id="addForm" class="add-form">
+                  <label>
+                    Task
+                    <input name="task" required placeholder="Laporan bulanan" />
+                  </label>
+                  <label>
+                    Deadline
+                    <input name="deadline" type="date" required />
+                  </label>
+                  <label>
+                    H-Notif
+                    <input name="notifyDays" value="7,3,1,0" />
+                  </label>
+                  <label>
+                    Target
+                    <input name="target" placeholder="blank = owner/default" />
+                  </label>
+                  <label>
+                    Notes
+                    <textarea name="notes" rows="3" placeholder="@628xxx optional note"></textarea>
+                  </label>
+                  <button type="submit">Create reminder</button>
+                </form>
+              </article>
+
+              <article class="panel activity-panel">
+                <div class="panel-head">
+                  <div>
+                    <p class="eyebrow">System</p>
+                    <h2>Activity</h2>
+                  </div>
+                </div>
+                <div id="activityLog" class="activity-log"></div>
+              </article>
+            </aside>
+          </section>
+        </section>
+
+        <section class="view" data-view-panel="stickers">
+          <section class="sticker-grid">
+            <article class="panel sticker-preview-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Current command sticker</p>
+                  <h2>!damn</h2>
+                </div>
+                <button id="reloadStickerBtn" class="small-button" type="button">Reload</button>
+              </div>
+              <div class="sticker-preview">
+                <img id="damnPreview" alt="Current !damn sticker preview" />
+                <p id="stickerEmpty" class="muted">No sticker preview loaded yet.</p>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Setdamn</p>
+                  <h2>Update sticker</h2>
+                </div>
+              </div>
+              <form id="stickerForm" class="add-form">
+                <label>
+                  Image or video
+                  <input name="stickerFile" type="file" accept="image/*,video/*" required />
+                </label>
+                <button type="submit">Update !damn sticker</button>
+              </form>
+              <p class="muted form-note">Images and short videos are converted to WhatsApp WebP sticker format, same as the chat command.</p>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Send test</p>
+                  <h2>Send !damn</h2>
+                </div>
+              </div>
+              <form id="sendStickerForm" class="add-form">
+                <label>
+                  Target number or group JID
+                  <input name="target" placeholder="blank = owner" />
+                </label>
+                <button type="submit">Send sticker</button>
+              </form>
+            </article>
+          </section>
+        </section>
+
+        <section class="view" data-view-panel="reminders">
+          <article class="panel reminders-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Full list</p>
+                <h2>Reminders</h2>
+              </div>
+              <div class="filters" aria-label="Reminder filters">
+                <button class="filter active" type="button" data-filter="all">All</button>
+                <button class="filter" type="button" data-filter="active">Active</button>
+                <button class="filter" type="button" data-filter="done">Done</button>
+                <button class="filter" type="button" data-filter="overdue">Overdue</button>
+              </div>
+            </div>
+            <div id="reminderList" class="reminder-list paginated"></div>
+            <div class="pagination">
+              <button id="prevPageBtn" class="small-button" type="button">Previous</button>
+              <span id="pageLabel">Page 1 of 1</span>
+              <button id="nextPageBtn" class="small-button" type="button">Next</button>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <template id="reminderTemplate">
+      <article class="reminder-row">
+        <div class="reminder-main">
+          <span class="number"></span>
+          <div>
+            <h3></h3>
+            <p></p>
+          </div>
+        </div>
+        <div class="reminder-meta">
+          <span class="pill source"></span>
+          <span class="pill status"></span>
+          <button class="small-button done-button" type="button">Done</button>
+          <button class="small-button skip-button" type="button">Skip</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="/dashboard.js"></script>
+  </body>
+</html>

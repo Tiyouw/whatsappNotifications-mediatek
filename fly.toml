@@ -38,8 +38,8 @@ primary_region = "sin"
   source = "wa_data"
   destination = "/data"
 
-# HTTP keep-alive exposed by index.js on port 3000. Fly's edge handles TLS;
-# the container only speaks plain HTTP internally.
+# Dashboard + health server exposed by index.js on port 3000. Fly's edge
+# handles TLS; the container only speaks plain HTTP internally.
 [[services]]
   protocol = "tcp"
   internal_port = 3000

@@ -78,6 +78,7 @@ flyctl secrets set `
   OWNER_NUMBER="628xxxxxxxxxx" `
   ALLOWED_NUMBERS="628xxxxxxxxxx,628yyyyyyyyyy" `
   ALLOWED_LIDS="125812544147601" `
+  DASHBOARD_TOKEN="use-a-long-random-dashboard-password" `
   DEFAULT_GROUP_JID="120363xxxxxxxxxxxx@g.us" `
   REMINDER_CRON="0 8 * * *" `
   NOTIFY_DAYS_BEFORE="7,3,1,0" `
@@ -91,6 +92,7 @@ flyctl secrets set `
 
 Notes:
 
+- `DASHBOARD_TOKEN` protects the web dashboard and its write actions. Use a long random value and enter it in the dashboard login screen.
 - `DONE_REQUIRE_OWNER_APPROVAL`, `DONE_APPROVAL_TTL_MS`, `APPROVER_NUMBERS`, and `APPROVER_LABEL` are optional; omit them if you do not use the approval flow.
 - **Do NOT set `AUTH_DIR`, `REACTION_MAP_PATH`, `DAMN_STICKER_PATH`, or `GOOGLE_CREDENTIALS_PATH` via `flyctl secrets`.** Those are path values, not secrets, and they are already defined in `fly.toml`'s `[env]` block pointing at `/data/...`. A secret with the same name **silently overrides** the `[env]` value at runtime, and `flyctl secrets list` shows only key names (never values), so a stray `AUTH_DIR` secret is invisible in ordinary TOML diffs. If one ever gets set, removing the `[env]` entry will **not** undo it: you must `flyctl secrets unset AUTH_DIR --app $APP` explicitly.
 - `flyctl secrets set` triggers an app restart as soon as a machine exists. Before the first deploy the app has zero machines, so the secrets are just staged for when the machine boots.
@@ -234,7 +236,7 @@ Watch the output. You should see:
 1. Docker image builds locally or on Fly's remote builder.
 2. Image pushed to Fly's registry.
 3. A new machine launches in `sin`.
-4. Health checks on `/` pass (the keep-alive server replies `Bot is running`).
+4. Health checks on `/` pass and the dashboard is available at `https://<app>.fly.dev/`.
 
 ---
 
@@ -247,7 +249,7 @@ flyctl logs --app $APP
 **Good signs** (Baileys found the seeded session):
 
 ```
-🌐 Keep-alive server listening on port 3000
+🌐 Dashboard server listening on port 3000
 🔌 Menghubungkan ke WhatsApp...
 📇 Seeded lid from creds: 125812544147601@lid
 ✅ WhatsApp berhasil terhubung!
@@ -333,6 +335,9 @@ flyctl ssh console -a $APP
 # Redeploy after pushing new code to master
 flyctl deploy -a $APP
 
+# Set or rotate the dashboard password/token
+flyctl secrets set DASHBOARD_TOKEN="new-long-random-value" -a $APP
+
 # Rotate a secret (triggers an automatic restart)
 flyctl secrets set SPREADSHEET_ID="new_value" -a $APP
 
@@ -378,6 +383,7 @@ flyctl scale memory 512 -a $APP
 | `OWNER_NUMBER` | secret | `flyctl secrets set` | `628xxx` |
 | `ALLOWED_NUMBERS` | secret | `flyctl secrets set` | comma-separated |
 | `ALLOWED_LIDS` | secret | `flyctl secrets set` | e.g. `125812544147601` |
+| `DASHBOARD_TOKEN` | secret | `flyctl secrets set` | long random dashboard token |
 | `DEFAULT_GROUP_JID` | secret | `flyctl secrets set` | `120363xxx@g.us` |
 | `REMINDER_CRON` | secret | `flyctl secrets set` | `0 8 * * *` |
 | `NOTIFY_DAYS_BEFORE` | secret | `flyctl secrets set` | `7,3,1,0` |
