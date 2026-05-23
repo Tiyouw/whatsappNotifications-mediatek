@@ -13,6 +13,7 @@ const qrcode = require("qrcode-terminal");
 const { startScheduler } = require("./src/scheduler");
 const { handleCommand, handleReaction } = require("./src/commandHandler");
 const { startDashboardServer } = require("./src/dashboardServer");
+const { startInstagramMonitor } = require("./src/instagramMonitor");
 const {
   convertImageToSticker,
   convertVideoToSticker,
@@ -50,6 +51,7 @@ const logger = pino({ level: "silent" });
 
 let sock = null;
 let schedulerStarted = false;
+let igMonitorStarted = false;
 let isFirstConnect = true;
 let reconnectCount = 0;
 
@@ -193,6 +195,11 @@ async function connectToWhatsApp() {
       if (!schedulerStarted) {
         startScheduler(sock);
         schedulerStarted = true;
+      }
+
+      if (!igMonitorStarted) {
+        startInstagramMonitor(sock);
+        igMonitorStarted = true;
       }
 
       if (isFirstConnect) {

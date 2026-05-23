@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create the Instagram monitor module (src/instagramMonitor.js), wire it into index.js, add !ig commands to commandHandler.js, update .env.example, and create data/igState.json persistence.",
+  "status": "in_progress",
+  "steps": [
+    "Create src/instagramMonitor.js with the following functionality: (a) Use native fetch to poll Instagram Graph API endpoint https://graph.instagram.com/{user-id}/media?fields=id,caption,media_type,permalink,timestamp&access_token={token}. (b) Schedule polling via node-cron using IG_CHECK_CRON env var (default '*/5 * * * *'). (c) Read/write state from data/igState.json (lastPostId, lastChecked, enabled) following the same pattern as src/reactionMap.js (resolveMapPath, production absolute path check with IG_STATE_PATH env var, fs.existsSync, JSON parse/stringify). (d) On new post detected: compare media IDs, format and send WhatsApp message to target (IG_NOTIFY_TARGET -- 'owner' resolves to OWNER_NUMBER@s.whatsapp.net, otherwise use the JID directly). (e) Message format for posts: emoji 📸, caption text, permalink, 'Jangan lupa like ya!' reminder. For reels (VIDEO media_type): use 🎬 emoji. (f) Filter by IG_CONTENT_TYPES env var (default 'post', can be 'post,reel' or 'reel'). Posts are IMAGE/CAROUSEL_ALBUM media_type, reels are VIDEO. (g) Token expiry warning: check token info via https://graph.instagram.com/debug_token or /me endpoint, if expires_at is within 7 days send warning DM to OWNER_NUMBER. (h) Export startInstagramMonitor(sock) function and checkInstagramNow(sock) for manual trigger, getIgStatus() for status info. (i) Enable/disable toggle that respects both env IG_MONITOR_ENABLED and the igState.json enabled field.",
+    "Wire instagramMonitor into index.js: (a) Add require('./src/instagramMonitor') at the top with the other requires. (b) In the connection === 'open' block, after startScheduler(sock), call startInstagramMonitor(sock) -- use a similar flag pattern (igMonitorStarted) to prevent double-start on reconnect.",
+    "Add !ig commands to src/commandHandler.js: (a) Add require for checkInstagramNow and getIgStatus from '../src/instagramMonitor' (actually './instagramMonitor' since commandHandler is in src/). (b) Add cases in the switch statement for 'ig' command. Parse subcommands from argStr: 'status', 'check', 'on', 'off'. (c) !ig status -- call getIgStatus() and format response with monitoring state, last post info, next check time. (d) !ig check -- call checkInstagramNow(sock), reply with result. (e) !ig on -- update igState.json enabled=true, reply confirmation. (f) !ig off -- update igState.json enabled=false, reply confirmation. (g) Default !ig with no subcommand shows usage help.",
+    "Update .env.example: Add a new section '# -- Instagram Auto-Ping' with all IG_ env vars documented with comments (IG_MONITOR_ENABLED, IG_USER_ID, IG_ACCESS_TOKEN, IG_CHECK_CRON, IG_NOTIFY_TARGET, IG_CONTENT_TYPES, IG_STATE_PATH)."
+  ],
+  "acceptance_criteria": [
+    "src/instagramMonitor.js exists and exports startInstagramMonitor, checkInstagramNow, getIgStatus, setIgEnabled",
+    "node --check src/instagramMonitor.js passes without errors",
+    "node --check src/commandHandler.js passes without errors",
+    "node --check index.js passes without errors",
+    "index.js imports and calls startInstagramMonitor(sock) after connection opens",
+    "commandHandler.js handles !ig status, !ig check, !ig on, !ig off commands",
+    ".env.example contains all IG_ environment variables with documentation comments",
+    "The igState.json persistence follows the same pattern as reactionMap.js (production path validation, auto-create directory, JSON read/write)"
+  ],
+  "verification": [
+    "Run: node --check src/instagramMonitor.js",
+    "Run: node --check src/commandHandler.js",
+    "Run: node --check index.js",
+    "Run: grep -c 'instagramMonitor' index.js (should be >= 1)",
+    "Run: grep -c 'case .ig' src/commandHandler.js (should be >= 1)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
