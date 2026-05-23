@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Create the Instagram monitor module (src/instagramMonitor.js), wire it into index.js, add !ig commands to commandHandler.js, update .env.example, and create data/igState.json persistence.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/instagramMonitor.js with the following functionality: (a) Use native fetch to poll Instagram Graph API endpoint https://graph.instagram.com/{user-id}/media?fields=id,caption,media_type,permalink,timestamp&access_token={token}. (b) Schedule polling via node-cron using IG_CHECK_CRON env var (default '*/5 * * * *'). (c) Read/write state from data/igState.json (lastPostId, lastChecked, enabled) following the same pattern as src/reactionMap.js (resolveMapPath, production absolute path check with IG_STATE_PATH env var, fs.existsSync, JSON parse/stringify). (d) On new post detected: compare media IDs, format and send WhatsApp message to target (IG_NOTIFY_TARGET -- 'owner' resolves to OWNER_NUMBER@s.whatsapp.net, otherwise use the JID directly). (e) Message format for posts: emoji 📸, caption text, permalink, 'Jangan lupa like ya!' reminder. For reels (VIDEO media_type): use 🎬 emoji. (f) Filter by IG_CONTENT_TYPES env var (default 'post', can be 'post,reel' or 'reel'). Posts are IMAGE/CAROUSEL_ALBUM media_type, reels are VIDEO. (g) Token expiry warning: check token info via https://graph.instagram.com/debug_token or /me endpoint, if expires_at is within 7 days send warning DM to OWNER_NUMBER. (h) Export startInstagramMonitor(sock) function and checkInstagramNow(sock) for manual trigger, getIgStatus() for status info. (i) Enable/disable toggle that respects both env IG_MONITOR_ENABLED and the igState.json enabled field.",
     "Wire instagramMonitor into index.js: (a) Add require('./src/instagramMonitor') at the top with the other requires. (b) In the connection === 'open' block, after startScheduler(sock), call startInstagramMonitor(sock) -- use a similar flag pattern (igMonitorStarted) to prevent double-start on reconnect.",
@@ -27,5 +27,5 @@
     "Run: grep -c 'case .ig' src/commandHandler.js (should be >= 1)"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All syntax checks pass. No test suite exists so verification is limited to node --check. The module gracefully skips startup when IG_USER_ID or IG_ACCESS_TOKEN are not set."
 }
