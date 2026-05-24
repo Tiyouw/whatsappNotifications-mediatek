@@ -552,12 +552,22 @@ async function handleCommand(sock, msg) {
           }
 
           case "on": {
+            const ownerNum = process.env.OWNER_NUMBER || "";
+            if (!ownerNum || !fromJid.includes(ownerNum)) {
+              await reply(sock, senderJid, msg, `\u26D4 Hanya owner yang bisa mengubah status monitor.`);
+              break;
+            }
             setIgEnabled(true);
             await reply(sock, senderJid, msg, `\u2705 Instagram monitor diaktifkan.`);
             break;
           }
 
           case "off": {
+            const ownerNum = process.env.OWNER_NUMBER || "";
+            if (!ownerNum || !fromJid.includes(ownerNum)) {
+              await reply(sock, senderJid, msg, `\u26D4 Hanya owner yang bisa mengubah status monitor.`);
+              break;
+            }
             setIgEnabled(false);
             await reply(sock, senderJid, msg, `\u2705 Instagram monitor dinonaktifkan.`);
             break;

@@ -147,6 +147,14 @@ function checkTokenExpiry(sock) {
   const daysLeft = (expiryDate - now) / (1000 * 60 * 60 * 24);
 
   if (daysLeft <= 7 && daysLeft > 0) {
+    // Debounce: only send once per 24 hours
+    const state = loadState();
+    if (state.lastExpiryWarningSent) {
+      const lastSent = new Date(state.lastExpiryWarningSent);
+      const hoursSinceLast = (now - lastSent) / (1000 * 60 * 60);
+      if (hoursSinceLast < 24) return;
+    }
+
     const ownerJid = `${process.env.OWNER_NUMBER}@s.whatsapp.net`;
     const daysRounded = Math.ceil(daysLeft);
     sock
@@ -155,6 +163,10 @@ function checkTokenExpiry(sock) {
           `\u26A0\uFE0F *Instagram Token Expiry Warning*\n\n` +
           `Token akan expired dalam ${daysRounded} hari (${expiryDate.toISOString().split("T")[0]}).\n` +
           `Segera refresh token di Facebook Developer Console.`,
+      })
+      .then(() => {
+        state.lastExpiryWarningSent = now.toISOString();
+        saveState(state);
       })
       .catch((err) => {
         console.error("❌ instagramMonitor: failed to send token warning:", err.message);
@@ -177,6 +189,24 @@ async function performCheck(sock) {
   state.lastChecked = new Date().toISOString();
 
   if (result.error) {
+    // Track consecutive failures
+    state.consecutiveErrors = (state.consecutiveErrors || 0) + 1;
+    const errCount = state.consecutiveErrors;
+
+    if (errCount === 3) {
+      const ownerJid = `${process.env.OWNER_NUMBER}@s.whatsapp.net`;
+      await sock
+        .sendMessage(ownerJid, {
+          text:
+            `\u26A0\uFE0F *Instagram Monitor: ${errCount} consecutive errors*\n\n` +
+            `Latest: ${result.error} - ${result.message}\n` +
+            `Monitor will keep retrying.`,
+        })
+        .catch(() => {});
+    } else if (errCount >= 10 && errCount % 10 === 0) {
+      console.warn(`⚠️  instagramMonitor: ${errCount} consecutive errors, latest: ${result.error}`);
+    }
+
     // Notify owner about token issues
     if (result.error === "token_expired") {
       const ownerJid = `${process.env.OWNER_NUMBER}@s.whatsapp.net`;
@@ -191,6 +221,11 @@ async function performCheck(sock) {
     }
     saveState(state);
     return { checked: true, newPost: false, error: result.error };
+  }
+
+  // Reset consecutive error counter on success
+  if (state.consecutiveErrors) {
+    state.consecutiveErrors = 0;
   }
 
   const { posts } = result;

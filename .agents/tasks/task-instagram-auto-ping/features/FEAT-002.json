@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Address semantic review findings: debounce token expiry warnings, add owner-only guard on !ig on/off, and add consecutive failure back-off.",
+  "status": "in_progress",
+  "steps": [
+    "Fix token expiry warning spam: add lastExpiryWarningSent field to state, skip sending if less than 24 hours since last warning.",
+    "Add owner-only guard on !ig on/off in commandHandler.js: check fromJid against OWNER_NUMBER before allowing toggle.",
+    "Add consecutive error counter: track failures in state, notify owner after 3 consecutive failures, log warning after 10. Reset on success."
+  ],
+  "acceptance_criteria": [
+    "checkTokenExpiry only sends a warning once per 24 hours (debounced via lastExpiryWarningSent in state)",
+    "!ig on and !ig off only work when fromJid matches OWNER_NUMBER",
+    "Consecutive API failures are tracked; owner is notified after 3 failures; counter resets on success",
+    "node --check src/instagramMonitor.js passes",
+    "node --check src/commandHandler.js passes"
+  ],
+  "verification": [
+    "Run: node --check src/instagramMonitor.js",
+    "Run: node --check src/commandHandler.js"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}
