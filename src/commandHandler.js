@@ -239,6 +239,8 @@ async function handleCommand(sock, msg) {
             `ℹ️ *INFO*\n` +
             `!status — uptime & info bot\n` +
             `!help — pesan ini\n\n` +
+            `📤 *SHARE*\n` +
+            `!share <link> [caption] — share link ke grup\n\n` +
             `📝 *FORMAT !tambah*\n` +
             `!tambah task | YYYY-MM-DD | H-notif | catatan\n` +
             `Contoh: !tambah Rapat | 2026-05-10 | 3,1,0 | Di aula\n` +
@@ -589,6 +591,60 @@ async function handleCommand(sock, msg) {
                 `Mode: Polling (direct scraping setiap ${process.env.IG_CHECK_CRON || "*/5 * * * *"})`
             );
         }
+        break;
+      }
+
+      // ── !share ────────────────────────────────────────────────────────
+      case "share": {
+        // Extract URL from the message (everything after !share)
+        const shareFullText = text.slice(1 + cmd.length).trim(); // text after "!share"
+        const urlRegex = /https?:\/\/[^\s]+/i;
+        const urlMatch = shareFullText.match(urlRegex);
+
+        if (!urlMatch) {
+          await reply(
+            sock,
+            senderJid,
+            msg,
+            `❓ Format: *!share <link> [caption]*\n\nContoh:\n!share https://instagram.com/p/ABC123\n!share https://tiktok.com/@user/video/123 Cek video baru!`
+          );
+          break;
+        }
+
+        const shareUrl = urlMatch[0];
+        // Caption is everything except the command word and the URL
+        const shareCaption = shareFullText.replace(urlRegex, "").trim();
+
+        // Determine emoji and title based on URL
+        let shareEmoji = "\uD83D\uDCE2"; // 📢
+        let shareTitle = "Post baru!";
+        if (shareUrl.toLowerCase().includes("instagram.com")) {
+          shareEmoji = "\uD83D\uDCF8"; // 📸
+          shareTitle = "Post baru di Instagram!";
+        } else if (shareUrl.toLowerCase().includes("tiktok.com")) {
+          shareEmoji = "\uD83C\uDFB5"; // 🎵
+          shareTitle = "Video baru di TikTok!";
+        }
+
+        // Build notification message
+        let shareNotification = `${shareEmoji} ${shareTitle}\n`;
+        if (shareCaption) {
+          shareNotification += `\n"${shareCaption}"\n`;
+        }
+        shareNotification += `\n\uD83D\uDD17 ${shareUrl}\n`;
+        shareNotification += `\nJangan lupa like ya! \u2764\uFE0F`;
+
+        // Resolve target JID (reuse IG_NOTIFY_TARGET logic)
+        const shareTargetRaw = process.env.IG_NOTIFY_TARGET || "owner";
+        const shareTargetJid = shareTargetRaw === "owner"
+          ? `${process.env.OWNER_NUMBER}@s.whatsapp.net`
+          : shareTargetRaw;
+
+        // Send notification to target
+        await sock.sendMessage(shareTargetJid, { text: shareNotification });
+
+        // Confirm to sender
+        await reply(sock, senderJid, msg, "\u2705 Shared! Notifikasi sudah dikirim.");
         break;
       }
 

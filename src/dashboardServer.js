@@ -72,6 +72,43 @@ function startDashboardServer(getSock) {
         // Parse body (JSON or form-urlencoded)
         const body = await readBody(req);
 
+        // Support simpler share-target format: { url: "...", caption: "..." }
+        // alongside existing IFTTT format: { caption, url, source_url, created_at }
+        if (body.url && !body.source_url && !body.created_at) {
+          // Simple share-target format - use smart emoji detection
+          const shareUrl = body.url || "";
+          const shareCaption = body.caption || "";
+
+          let emoji = "\uD83D\uDCE2"; // 📢
+          let title = "Post baru!";
+          if (shareUrl.toLowerCase().includes("instagram.com")) {
+            emoji = "\uD83D\uDCF8"; // 📸
+            title = "Post baru di Instagram!";
+          } else if (shareUrl.toLowerCase().includes("tiktok.com")) {
+            emoji = "\uD83C\uDFB5"; // 🎵
+            title = "Video baru di TikTok!";
+          }
+
+          let notifText = `${emoji} ${title}\n`;
+          if (shareCaption) {
+            notifText += `\n"${shareCaption}"\n`;
+          }
+          notifText += `\n\uD83D\uDD17 ${shareUrl}\n`;
+          notifText += `\nJangan lupa like ya! \u2764\uFE0F`;
+
+          const targetRaw = process.env.IG_NOTIFY_TARGET || "owner";
+          const targetJid = targetRaw === "owner"
+            ? `${process.env.OWNER_NUMBER}@s.whatsapp.net`
+            : targetRaw;
+
+          try {
+            await sock.sendMessage(targetJid, { text: notifText });
+            return sendJson(res, 200, { ok: true });
+          } catch (err) {
+            return sendJson(res, 500, { error: err.message || "Failed to send notification" });
+          }
+        }
+
         const result = await handleWebhookPost(sock, body);
         if (result.success) {
           return sendJson(res, 200, { ok: true });
