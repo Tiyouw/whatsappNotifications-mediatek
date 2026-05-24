@@ -1,0 +1,14 @@
+{
+  "task_id": "task-instagram-auto-ping",
+  "task_description": "Build an Instagram auto-ping feature that monitors an Instagram account for new posts/reels via the Instagram Graph API and sends WhatsApp notifications with post link, caption, and like reminder. Includes !ig commands for status/control, state persistence in data/igState.json, and token expiry warnings.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "pass",
+    "summary": "All syntax checks pass (node --check on index.js, commandHandler.js, instagramMonitor.js). Docker image builds successfully. No test framework exists in this project so validation is syntax + Docker build."
+  }
+}

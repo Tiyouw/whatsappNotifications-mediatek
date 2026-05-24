@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Address semantic review findings: debounce token expiry warnings, add owner-only guard on !ig on/off, and add consecutive failure back-off.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Fix token expiry warning spam: add lastExpiryWarningSent field to state, skip sending if less than 24 hours since last warning.",
     "Add owner-only guard on !ig on/off in commandHandler.js: check fromJid against OWNER_NUMBER before allowing toggle.",
@@ -20,5 +20,5 @@
     "Run: node --check src/commandHandler.js"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All three review issues addressed. Syntax checks pass on all files. Added edge-case guard for empty OWNER_NUMBER in the owner check."
 }
