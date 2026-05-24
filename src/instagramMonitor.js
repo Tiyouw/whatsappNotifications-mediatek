@@ -1,17 +1,15 @@
 /**
  * instagramMonitor.js
  *
- * Polls the Instagram Graph API for new posts/reels and sends a WhatsApp
- * notification when new content is detected.
+ * Receives Instagram post notifications via IFTTT webhook and sends a
+ * WhatsApp notification to the configured target.
  *
  * State: data/igState.json (auto-created if missing)
- * Env vars: IG_MONITOR_ENABLED, IG_USER_ID, IG_ACCESS_TOKEN, IG_CHECK_CRON,
- *           IG_NOTIFY_TARGET, IG_CONTENT_TYPES, IG_STATE_PATH, IG_TOKEN_EXPIRES_AT
+ * Env vars: IG_MONITOR_ENABLED, IG_NOTIFY_TARGET, IG_STATE_PATH, IG_WEBHOOK_SECRET
  */
 
 const fs = require("fs");
 const path = require("path");
-const cron = require("node-cron");
 
 // ── Path resolution (same pattern as reactionMap.js) ───────────────────
 function resolveStatePath() {
@@ -42,7 +40,7 @@ function loadState() {
   } catch {
     console.warn("⚠️  instagramMonitor: failed to read state, starting fresh");
   }
-  return { lastPostId: null, lastChecked: null, enabled: true };
+  return { lastNotificationSent: null, enabled: true };
 }
 
 function saveState(state) {
@@ -63,256 +61,82 @@ function resolveNotifyTarget() {
   return target;
 }
 
-function getContentTypeFilter() {
-  const raw = (process.env.IG_CONTENT_TYPES || "post").toLowerCase();
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
-}
-
-/**
- * Map IG media_type to our content category.
- * IMAGE and CAROUSEL_ALBUM = "post", VIDEO = "reel"
- */
-function mediaTypeToCategory(mediaType) {
-  if (mediaType === "VIDEO") return "reel";
-  return "post"; // IMAGE, CAROUSEL_ALBUM
-}
-
 function isMonitorEnabled() {
   const envEnabled = (process.env.IG_MONITOR_ENABLED || "true").toLowerCase() !== "false";
   const state = loadState();
   return envEnabled && state.enabled;
 }
 
-function formatNotification(post) {
-  const isReel = post.media_type === "VIDEO";
-  const emoji = isReel ? "\uD83C\uDFAC" : "\uD83D\uDCF8"; // 🎬 or 📸
-  const typeLabel = isReel ? "Reel baru" : "Post baru";
-  const caption = post.caption ? `"${post.caption}"` : "";
-  const permalink = post.permalink || "";
+function formatNotification(postData) {
+  const caption = postData.caption ? `"${postData.caption}"` : "";
+  const url = postData.url || postData.source_url || "";
 
-  let text = `${emoji} ${typeLabel} di Instagram!\n`;
+  let text = `\uD83D\uDCF8 Post baru di Instagram!\n`;
   if (caption) {
     text += `\n${caption}\n`;
   }
-  if (permalink) {
-    text += `\n\uD83D\uDD17 ${permalink}\n`;
+  if (url) {
+    text += `\n\uD83D\uDD17 ${url}\n`;
   }
   text += `\nJangan lupa like ya! \u2764\uFE0F`;
   return text;
 }
 
-// ── Instagram API ──────────────────────────────────────────────────────
-async function fetchRecentMedia() {
-  const userId = process.env.IG_USER_ID;
-  const token = process.env.IG_ACCESS_TOKEN;
+// ── Stored sock reference ──────────────────────────────────────────────
+let _sock = null;
 
-  if (!userId || !token) {
-    console.warn("⚠️  instagramMonitor: IG_USER_ID or IG_ACCESS_TOKEN not set");
-    return null;
+// ── Webhook handler ────────────────────────────────────────────────────
+/**
+ * Handle an incoming webhook POST from IFTTT with Instagram post data.
+ * @param {object} sock - Baileys WhatsApp socket (or null to use stored ref)
+ * @param {object} postData - { caption, url, source_url, created_at }
+ * @returns {{ success: boolean, reason?: string }}
+ */
+async function handleWebhookPost(sock, postData) {
+  const activeSock = sock || _sock;
+  if (!activeSock) {
+    return { success: false, reason: "WhatsApp socket not available" };
   }
 
-  const url =
-    `https://graph.instagram.com/${userId}/media` +
-    `?fields=id,caption,media_type,permalink,timestamp` +
-    `&access_token=${token}`;
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (data.error) {
-      // Token expired or invalid
-      if (data.error.code === 190) {
-        return { error: "token_expired", message: data.error.message };
-      }
-      return { error: "api_error", message: data.error.message };
-    }
-
-    return { posts: data.data || [] };
-  } catch (err) {
-    console.error("❌ instagramMonitor: fetch failed:", err.message);
-    return { error: "network_error", message: err.message };
-  }
-}
-
-// ── Token expiry check ─────────────────────────────────────────────────
-function checkTokenExpiry(sock) {
-  const expiresAt = process.env.IG_TOKEN_EXPIRES_AT;
-  if (!expiresAt) return;
-
-  const expiryDate = new Date(expiresAt);
-  if (isNaN(expiryDate.getTime())) return;
-
-  const now = new Date();
-  const daysLeft = (expiryDate - now) / (1000 * 60 * 60 * 24);
-
-  if (daysLeft <= 7 && daysLeft > 0) {
-    // Debounce: only send once per 24 hours
-    const state = loadState();
-    if (state.lastExpiryWarningSent) {
-      const lastSent = new Date(state.lastExpiryWarningSent);
-      const hoursSinceLast = (now - lastSent) / (1000 * 60 * 60);
-      if (hoursSinceLast < 24) return;
-    }
-
-    const ownerJid = `${process.env.OWNER_NUMBER}@s.whatsapp.net`;
-    const daysRounded = Math.ceil(daysLeft);
-    sock
-      .sendMessage(ownerJid, {
-        text:
-          `\u26A0\uFE0F *Instagram Token Expiry Warning*\n\n` +
-          `Token akan expired dalam ${daysRounded} hari (${expiryDate.toISOString().split("T")[0]}).\n` +
-          `Segera refresh token di Facebook Developer Console.`,
-      })
-      .then(() => {
-        state.lastExpiryWarningSent = now.toISOString();
-        saveState(state);
-      })
-      .catch((err) => {
-        console.error("❌ instagramMonitor: failed to send token warning:", err.message);
-      });
-  }
-}
-
-// ── Core check logic ───────────────────────────────────────────────────
-async function performCheck(sock) {
   if (!isMonitorEnabled()) {
-    return { checked: false, reason: "disabled" };
+    return { success: false, reason: "monitor_disabled" };
   }
 
-  const result = await fetchRecentMedia();
-  if (!result) {
-    return { checked: false, reason: "missing_config" };
-  }
-
-  const state = loadState();
-  state.lastChecked = new Date().toISOString();
-
-  if (result.error) {
-    // Track consecutive failures
-    state.consecutiveErrors = (state.consecutiveErrors || 0) + 1;
-    const errCount = state.consecutiveErrors;
-
-    if (errCount === 3) {
-      const ownerJid = `${process.env.OWNER_NUMBER}@s.whatsapp.net`;
-      await sock
-        .sendMessage(ownerJid, {
-          text:
-            `\u26A0\uFE0F *Instagram Monitor: ${errCount} consecutive errors*\n\n` +
-            `Latest: ${result.error} - ${result.message}\n` +
-            `Monitor will keep retrying.`,
-        })
-        .catch(() => {});
-    } else if (errCount >= 10 && errCount % 10 === 0) {
-      console.warn(`⚠️  instagramMonitor: ${errCount} consecutive errors, latest: ${result.error}`);
-    }
-
-    // Notify owner about token issues
-    if (result.error === "token_expired") {
-      const ownerJid = `${process.env.OWNER_NUMBER}@s.whatsapp.net`;
-      await sock
-        .sendMessage(ownerJid, {
-          text:
-            `\u26A0\uFE0F *Instagram Token Error*\n\n` +
-            `Token expired atau invalid: ${result.message}\n` +
-            `Segera refresh token di Facebook Developer Console.`,
-        })
-        .catch(() => {});
-    }
-    saveState(state);
-    return { checked: true, newPost: false, error: result.error };
-  }
-
-  // Reset consecutive error counter on success
-  if (state.consecutiveErrors) {
-    state.consecutiveErrors = 0;
-  }
-
-  const { posts } = result;
-  if (!posts || posts.length === 0) {
-    saveState(state);
-    return { checked: true, newPost: false };
-  }
-
-  // Filter by content type
-  const allowedTypes = getContentTypeFilter();
-  const filtered = posts.filter((p) => allowedTypes.includes(mediaTypeToCategory(p.media_type)));
-
-  if (filtered.length === 0) {
-    saveState(state);
-    return { checked: true, newPost: false };
-  }
-
-  const latestPost = filtered[0];
-
-  // Compare with stored last post ID
-  if (state.lastPostId === latestPost.id) {
-    saveState(state);
-    return { checked: true, newPost: false };
-  }
-
-  // New post detected!
-  const isFirstRun = state.lastPostId === null;
-  state.lastPostId = latestPost.id;
-  saveState(state);
-
-  // On first run, just store the ID without sending notification
-  if (isFirstRun) {
-    console.log("📸 instagramMonitor: first run, stored current post ID");
-    return { checked: true, newPost: false, firstRun: true };
-  }
-
-  // Send notification
   const targetJid = resolveNotifyTarget();
-  const text = formatNotification(latestPost);
+  const text = formatNotification(postData);
 
   try {
-    await sock.sendMessage(targetJid, { text });
-    console.log(`📸 instagramMonitor: new post notified → ${targetJid}`);
+    await activeSock.sendMessage(targetJid, { text });
+    console.log(`📸 instagramMonitor: webhook notification sent → ${targetJid}`);
+
+    // Update state
+    const state = loadState();
+    state.lastNotificationSent = new Date().toISOString();
+    state.lastPostUrl = postData.url || postData.source_url || null;
+    state.lastCaption = postData.caption || null;
+    saveState(state);
+
+    return { success: true };
   } catch (err) {
     console.error("❌ instagramMonitor: failed to send notification:", err.message);
+    return { success: false, reason: err.message };
   }
-
-  return { checked: true, newPost: true, post: latestPost };
 }
 
-// ── Scheduled monitor ──────────────────────────────────────────────────
-let cronTask = null;
-
+// ── Scheduled monitor (webhook mode - no cron needed) ──────────────────
 function startInstagramMonitor(sock) {
-  const cronExpr = process.env.IG_CHECK_CRON || "*/5 * * * *";
+  _sock = sock;
 
   if ((process.env.IG_MONITOR_ENABLED || "true").toLowerCase() === "false") {
     console.log("📸 instagramMonitor: disabled via IG_MONITOR_ENABLED=false");
     return;
   }
 
-  if (!process.env.IG_USER_ID || !process.env.IG_ACCESS_TOKEN) {
-    console.log("📸 instagramMonitor: skipped (IG_USER_ID or IG_ACCESS_TOKEN not set)");
-    return;
-  }
-
-  console.log(`📸 instagramMonitor: started (cron: ${cronExpr})`);
-
-  cronTask = cron.schedule(
-    cronExpr,
-    async () => {
-      try {
-        await performCheck(sock);
-        checkTokenExpiry(sock);
-      } catch (err) {
-        console.error("❌ instagramMonitor: cron error:", err.message);
-      }
-    },
-    { timezone: "Asia/Jakarta" }
-  );
+  console.log("📸 instagramMonitor: started in webhook mode (IFTTT)");
+  console.log("   Waiting for POST /webhook/instagram from IFTTT...");
 }
 
 // ── Public API ─────────────────────────────────────────────────────────
-async function checkInstagramNow(sock) {
-  return await performCheck(sock);
-}
-
 function getIgStatus() {
   const state = loadState();
   const envEnabled = (process.env.IG_MONITOR_ENABLED || "true").toLowerCase() !== "false";
@@ -320,12 +144,11 @@ function getIgStatus() {
     enabled: envEnabled && state.enabled,
     envEnabled,
     stateEnabled: state.enabled,
-    lastPostId: state.lastPostId,
-    lastChecked: state.lastChecked,
-    cronExpr: process.env.IG_CHECK_CRON || "*/5 * * * *",
-    userId: process.env.IG_USER_ID || null,
+    lastNotificationSent: state.lastNotificationSent || null,
+    lastPostUrl: state.lastPostUrl || null,
+    lastCaption: state.lastCaption || null,
     notifyTarget: process.env.IG_NOTIFY_TARGET || "owner",
-    contentTypes: process.env.IG_CONTENT_TYPES || "post",
+    mode: "webhook (IFTTT)",
   };
 }
 
@@ -336,4 +159,4 @@ function setIgEnabled(enabled) {
   return state.enabled;
 }
 
-module.exports = { startInstagramMonitor, checkInstagramNow, getIgStatus, setIgEnabled };
+module.exports = { startInstagramMonitor, handleWebhookPost, getIgStatus, setIgEnabled };

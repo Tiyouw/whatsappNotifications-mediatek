@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { getReminders, markAsDone, addReminder, deleteReminder } = require("./sheets");
 const { triggerManualCheck, sendWeeklySummary } = require("./scheduler");
 const { convertImageToSticker, convertVideoToSticker } = require("./stickerHandler");
+const { handleWebhookPost, getIgStatus } = require("./instagramMonitor");
 const { now } = require("./time");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -37,6 +38,45 @@ function startDashboardServer(getSock) {
 
       if (req.method === "GET" && url.pathname === "/health") {
         return sendText(res, 200, "Bot is running");
+      }
+
+      // ── Instagram IFTTT Webhook ────────────────────────────────────────
+      if (url.pathname === "/webhook/instagram" && req.method === "POST") {
+        const webhookSecret = process.env.IG_WEBHOOK_SECRET || "";
+        if (!webhookSecret) {
+          return sendJson(res, 503, { error: "IG_WEBHOOK_SECRET not configured" });
+        }
+
+        // Auth: check Bearer token header or ?token= query param
+        const authHeader = req.headers.authorization || "";
+        const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+        const queryToken = url.searchParams.get("token") || "";
+        const providedToken = bearer || queryToken;
+
+        if (!providedToken || !safeEqual(providedToken, webhookSecret)) {
+          return sendJson(res, 401, { error: "Unauthorized" });
+        }
+
+        // Check if monitor is enabled
+        const igStatus = getIgStatus();
+        if (!igStatus.enabled) {
+          return sendJson(res, 503, { error: "Instagram monitor is disabled" });
+        }
+
+        // Check sock availability
+        const sock = getSock();
+        if (!sock) {
+          return sendJson(res, 503, { error: "WhatsApp socket is not connected yet." });
+        }
+
+        // Parse body (JSON or form-urlencoded)
+        const body = await readBody(req);
+
+        const result = await handleWebhookPost(sock, body);
+        if (result.success) {
+          return sendJson(res, 200, { ok: true });
+        }
+        return sendJson(res, 500, { error: result.reason || "Failed to send notification" });
       }
 
       if (url.pathname === "/api/dashboard/config" && req.method === "GET") {
@@ -255,6 +295,57 @@ function readJson(req) {
         resolve(JSON.parse(data));
       } catch {
         reject(new Error("Invalid JSON"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+/**
+ * Read request body, supporting both JSON and form-urlencoded (IFTTT sends either).
+ */
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => {
+      data += chunk;
+      if (data.length > 1_000_000) {
+        req.destroy();
+        reject(new Error("Request body too large"));
+      }
+    });
+    req.on("end", () => {
+      if (!data) return resolve({});
+      const contentType = (req.headers["content-type"] || "").toLowerCase();
+      if (contentType.includes("application/json")) {
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          reject(new Error("Invalid JSON"));
+        }
+      } else if (contentType.includes("application/x-www-form-urlencoded")) {
+        const params = new URLSearchParams(data);
+        const obj = {};
+        for (const [key, value] of params.entries()) {
+          obj[key] = value;
+        }
+        resolve(obj);
+      } else {
+        // Try JSON first, fall back to form-urlencoded
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          try {
+            const params = new URLSearchParams(data);
+            const obj = {};
+            for (const [key, value] of params.entries()) {
+              obj[key] = value;
+            }
+            resolve(obj);
+          } catch {
+            reject(new Error("Unsupported content type"));
+          }
+        }
       }
     });
     req.on("error", reject);

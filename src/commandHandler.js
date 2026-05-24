@@ -12,7 +12,7 @@ const {
   getMimeType,
 } = require("./stickerHandler");
 const reactionMap = require("./reactionMap");
-const { checkInstagramNow, getIgStatus, setIgEnabled } = require("./instagramMonitor");
+const { getIgStatus, setIgEnabled } = require("./instagramMonitor");
 const { now } = require("./time");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -515,10 +515,10 @@ async function handleCommand(sock, msg) {
           case "status": {
             const status = getIgStatus();
             const enabledText = status.enabled ? "Aktif \uD83D\uDFE2" : "Nonaktif \uD83D\uDD34";
-            const lastChecked = status.lastChecked
-              ? new Date(status.lastChecked).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
+            const lastNotif = status.lastNotificationSent
+              ? new Date(status.lastNotificationSent).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
               : "Belum pernah";
-            const lastPost = status.lastPostId || "Belum terdeteksi";
+            const lastUrl = status.lastPostUrl || "-";
 
             await reply(
               sock,
@@ -526,28 +526,23 @@ async function handleCommand(sock, msg) {
               msg,
               `\uD83D\uDCF8 *Instagram Monitor Status*\n\n` +
                 `Status: ${enabledText}\n` +
-                `User ID: ${status.userId || "(tidak diset)"}\n` +
+                `Mode: ${status.mode}\n` +
                 `Target: ${status.notifyTarget}\n` +
-                `Content types: ${status.contentTypes}\n` +
-                `Cron: ${status.cronExpr}\n` +
-                `Last check: ${lastChecked}\n` +
-                `Last post ID: ${lastPost}`
+                `Last notification: ${lastNotif}\n` +
+                `Last post URL: ${lastUrl}\n\n` +
+                `Webhook URL: POST /webhook/instagram?token=***`
             );
             break;
           }
 
           case "check": {
-            await reply(sock, senderJid, msg, "\uD83D\uDD04 Mengecek Instagram...");
-            const result = await checkInstagramNow(sock);
-            if (result.error) {
-              await reply(sock, senderJid, msg, `\u274C Error: ${result.error}`);
-            } else if (result.newPost) {
-              await reply(sock, senderJid, msg, `\u2705 Post baru terdeteksi! Notifikasi sudah dikirim.`);
-            } else if (!result.checked) {
-              await reply(sock, senderJid, msg, `\u26A0\uFE0F Monitor disabled atau config belum lengkap.`);
-            } else {
-              await reply(sock, senderJid, msg, `\u2705 Tidak ada post baru.`);
-            }
+            await reply(
+              sock,
+              senderJid,
+              msg,
+              `\u2139\uFE0F Monitor menggunakan webhook IFTTT, tidak perlu manual check. ` +
+                `Post di Instagram dan IFTTT akan trigger otomatis.`
+            );
             break;
           }
 
@@ -580,9 +575,10 @@ async function handleCommand(sock, msg) {
               msg,
               `\uD83D\uDCF8 *Instagram Monitor Commands*\n\n` +
                 `!ig status \u2014 cek status monitoring\n` +
-                `!ig check \u2014 cek post baru sekarang\n` +
+                `!ig check \u2014 info mode webhook\n` +
                 `!ig on \u2014 aktifkan monitoring\n` +
-                `!ig off \u2014 nonaktifkan monitoring`
+                `!ig off \u2014 nonaktifkan monitoring\n\n` +
+                `Mode: Webhook IFTTT (otomatis trigger saat post baru)`
             );
         }
         break;
