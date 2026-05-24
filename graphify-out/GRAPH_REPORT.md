@@ -1,11 +1,11 @@
 # Graph Report - wa-reminder-bot  (2026-05-20)
 
 ## Corpus Check
-- 25 files · ~52,608 words
+- 25 files · ~52,770 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 308 nodes · 479 edges · 20 communities (17 shown, 3 thin omitted)
+- 312 nodes · 485 edges · 20 communities (17 shown, 3 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -47,46 +47,46 @@
   src/commandHandler.js → src/time.js
 - `handleCommand()` --calls--> `triggerManualCheck()`  [EXTRACTED]
   src/commandHandler.js → src/scheduler.js
+- `handleCommand()` --calls--> `sendWeeklySummary()`  [EXTRACTED]
+  src/commandHandler.js → src/scheduler.js
 - `handleSetDamn()` --calls--> `getMediaType()`  [EXTRACTED]
-  src/commandHandler.js → src/stickerHandler.js
-- `handleSetDamn()` --calls--> `getMediaBuffer()`  [EXTRACTED]
   src/commandHandler.js → src/stickerHandler.js
 
 ## Communities (20 total, 3 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.1
-Nodes (41): buildQuotedMsg(), COMMAND_ALIASES, {
+Nodes (40): buildQuotedMsg(), COMMAND_ALIASES, {
   convertImageToSticker,
   convertVideoToSticker,
   getMediaBuffer,
   getMediaType,
   getMimeType,
-}, dayjs, displayNameFromJid(), filterByContext(), { formatSingleReminder, parseMentions, resolveTarget }, getMessageText() (+33 more)
+}, dayjs, displayNameFromJid(), filterByContext(), { formatSingleReminder, parseMentions, resolveTarget }, getMessageText() (+32 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.06
 Nodes (35): 0. Prerequisites, 10. Verify there is no QR in the logs, 11. Cost expectations, 12. Session portability caveat, 13. Day-2 operations cheatsheet, 14. Scaling memory, 1. Install flyctl and sign in, 2. Create the app (+27 more)
 
 ### Community 2 - "Community 2"
+Cohesion: 0.06
+Nodes (32): 🔒 Akses & Keamanan, ⚠️ Catatan Overdue, code:powershell (flyctl secrets set DASHBOARD_TOKEN="use-a-long-random-passwo), code:block11 (@6282132341102 tolong segera kerjakan!), code:bash (npm install -g pm2), code:bash (pm2 status          # cek status), code:powershell (npm run service:uninstall), code:block15 (wa-reminder-bot/) (+24 more)
+
+### Community 3 - "Community 3"
 Cohesion: 0.09
 Nodes (26): handleStickerCommand(), startDashboardServer(), convertImageToSticker(), convertVideoToSticker(), ffmpeg, ffmpegPath, getMediaBuffer(), getMediaCaption() (+18 more)
 
-### Community 3 - "Community 3"
-Cohesion: 0.06
-Nodes (30): 🔒 Akses & Keamanan, ⚠️ Catatan Overdue, code:powershell (flyctl secrets set DASHBOARD_TOKEN="use-a-long-random-passwo), code:block11 (@6282132341102 tolong segera kerjakan!), code:bash (npm install -g pm2), code:bash (pm2 status          # cek status), code:block14 (wa-reminder-bot/), code:block15 (node_modules/) (+22 more)
-
 ### Community 4 - "Community 4"
+Cohesion: 0.14
+Nodes (25): dayjs, formatReminderMessage(), formatSingleReminder(), formatSingleReminderMessage(), getUrgencyEmoji(), getUrgencyText(), { now }, parseMentions() (+17 more)
+
+### Community 5 - "Community 5"
 Cohesion: 0.18
 Nodes (26): api(), bindEvents(), boot(), describe(), els, filteredReminders(), getTotalPages(), loadConfig() (+18 more)
 
-### Community 5 - "Community 5"
-Cohesion: 0.14
-Nodes (24): dayjs, formatReminderMessage(), formatSingleReminder(), formatSingleReminderMessage(), getUrgencyEmoji(), getUrgencyText(), { now }, parseMentions() (+16 more)
-
 ### Community 6 - "Community 6"
-Cohesion: 0.1
-Nodes (15): { convertImageToSticker, convertVideoToSticker }, crypto, fs, { getReminders, markAsDone, addReminder, deleteReminder }, http, { now }, path, PROJECT_ROOT (+7 more)
+Cohesion: 0.09
+Nodes (16): { convertImageToSticker, convertVideoToSticker }, crypto, DASHBOARD_PORT, fs, { getReminders, markAsDone, addReminder, deleteReminder }, http, { now }, path (+8 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.1
@@ -132,10 +132,10 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Fly.io Deployment Runbook` connect `Community 1` to `Community 12`?**
   _High betweenness centrality (0.018) - this node is a cross-community bridge._
-- **Why does `🤖 Reo'sBot — WhatsApp Reminder Bot` connect `Community 3` to `Community 8`?**
-  _High betweenness centrality (0.016) - this node is a cross-community bridge._
-- **Why does `🚀 Setup Awal` connect `Community 8` to `Community 3`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
+- **Why does `🤖 Reo'sBot — WhatsApp Reminder Bot` connect `Community 2` to `Community 8`?**
+  _High betweenness centrality (0.017) - this node is a cross-community bridge._
+- **Why does `🚀 Setup Awal` connect `Community 8` to `Community 2`?**
+  _High betweenness centrality (0.009) - this node is a cross-community bridge._
 - **What connects `{
   default: makeWASocket,
   useMultiFileAuthState,
@@ -149,4 +149,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.06 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.09 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
