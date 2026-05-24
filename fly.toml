@@ -30,6 +30,7 @@ primary_region = "sin"
   REACTION_MAP_PATH = "/data/reactionMap.json"
   DAMN_STICKER_PATH = "/data/damn.webp"
   GOOGLE_CREDENTIALS_PATH = "/data/credentials.json"
+  IG_STATE_PATH = "/data/igState.json"
 
 # Persistent volume. Create once with:
 #   flyctl volumes create wa_data --size 1 --region sin --yes
