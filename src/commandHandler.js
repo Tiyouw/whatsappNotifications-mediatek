@@ -12,7 +12,7 @@ const {
   getMimeType,
 } = require("./stickerHandler");
 const reactionMap = require("./reactionMap");
-const { getIgStatus, setIgEnabled, checkInstagramNow } = require("./instagramMonitor");
+const { getIgStatus, setIgEnabled, checkInstagramNow, fetchLatestPostForSend, formatNotification, resolveNotifyTarget } = require("./instagramMonitor");
 const { now } = require("./time");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -590,6 +590,40 @@ async function handleCommand(sock, msg) {
             break;
           }
 
+          case "send": {
+            const ownerNum = process.env.OWNER_NUMBER || "";
+            if (!ownerNum || !fromJid.includes(ownerNum)) {
+              await reply(sock, senderJid, msg, `\u26D4 Hanya owner yang bisa menggunakan !ig send.`);
+              break;
+            }
+
+            const sendN = parseInt(args[1]) || 1;
+            if (sendN < 1 || sendN > 25) {
+              await reply(sock, senderJid, msg, `\u274C Nomor harus antara 1-25. Contoh: !ig send 3`);
+              break;
+            }
+
+            await reply(sock, senderJid, msg, `\uD83D\uDD04 Mengambil post #${sendN}...`);
+
+            try {
+              const post = await fetchLatestPostForSend(sendN);
+              if (!post) {
+                await reply(sock, senderJid, msg, `\u274C Gagal mengambil post dari Instagram.`);
+                break;
+              }
+
+              const targetJid = resolveNotifyTarget();
+              const text = formatNotification(post);
+              await sock.sendMessage(targetJid, { text });
+
+              const targetLabel = process.env.IG_NOTIFY_TARGET || "owner";
+              await reply(sock, senderJid, msg, `\u2705 Post terbaru sudah dikirim ke ${targetLabel}`);
+            } catch (err) {
+              await reply(sock, senderJid, msg, `\u274C Gagal kirim post: ${err.message}`);
+            }
+            break;
+          }
+
           default:
             await reply(
               sock,
@@ -598,6 +632,8 @@ async function handleCommand(sock, msg) {
               `\uD83D\uDCF8 *Instagram Monitor Commands*\n\n` +
                 `!ig status \u2014 cek status monitoring\n` +
                 `!ig check \u2014 manual check sekarang\n` +
+                `!ig send \u2014 kirim post terbaru ke target\n` +
+                `!ig send [n] \u2014 kirim post ke-n (1-25)\n` +
                 `!ig on \u2014 aktifkan monitoring\n` +
                 `!ig off \u2014 nonaktifkan monitoring\n\n` +
                 `Mode: ${process.env.IG_USER_ID && process.env.IG_ACCESS_TOKEN ? "Graph API (primary) + scraping (fallback)" : "Scraping"} setiap ${process.env.IG_CHECK_CRON || "*/5 * * * *"}`

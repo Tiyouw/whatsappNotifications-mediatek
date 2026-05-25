@@ -112,17 +112,19 @@ function getBrowserHeaders() {
 /**
  * Fetch the latest post via Instagram Graph API.
  * Requires IG_USER_ID and IG_ACCESS_TOKEN env vars.
+ * @param {number} limit - Number of posts to fetch (default 1, max 25)
  * Returns { shortcode, caption, timestamp, permalink } or null.
  */
-async function fetchViaGraphApi() {
+async function fetchViaGraphApi(limit = 1) {
   const userId = process.env.IG_USER_ID;
   const accessToken = process.env.IG_ACCESS_TOKEN;
 
   if (!userId || !accessToken) return null;
 
+  const fetchLimit = Math.min(Math.max(limit, 1), 25);
   const url =
     `https://graph.instagram.com/${userId}/media` +
-    `?fields=id,caption,media_type,permalink,timestamp&limit=1` +
+    `?fields=id,caption,media_type,permalink,timestamp&limit=${fetchLimit}` +
     `&access_token=${accessToken}`;
 
   const response = await fetch(url);
@@ -160,18 +162,22 @@ async function fetchViaGraphApi() {
 
   if (!posts || posts.length === 0) return null;
 
-  const latest = posts[0];
-  // Extract shortcode from permalink: https://www.instagram.com/p/DYnzUOJEwPJ/ -> DYnzUOJEwPJ
-  const shortcode = extractShortcodeFromPermalink(latest.permalink);
+  // Return all fetched posts as an array of normalized objects
+  const results = posts.map((post) => {
+    const shortcode = extractShortcodeFromPermalink(post.permalink);
+    return {
+      shortcode: shortcode || post.id,
+      caption: post.caption || "",
+      timestamp: post.timestamp ? Math.floor(new Date(post.timestamp).getTime() / 1000) : null,
+      permalink: post.permalink,
+      mediaType: post.media_type,
+      method: "graph_api",
+    };
+  });
 
-  return {
-    shortcode: shortcode || latest.id,
-    caption: latest.caption || "",
-    timestamp: latest.timestamp ? Math.floor(new Date(latest.timestamp).getTime() / 1000) : null,
-    permalink: latest.permalink,
-    mediaType: latest.media_type,
-    method: "graph_api",
-  };
+  // For backward compat: if limit=1, return single object
+  if (fetchLimit === 1) return results[0];
+  return results;
 }
 
 /**
@@ -438,6 +444,39 @@ async function fetchLatestPost(username) {
   }
 
   return null;
+}
+
+/**
+ * Fetch the Nth latest post for the !ig send command.
+ * Does NOT update state (lastShortcode etc.) - read-only fetch.
+ * @param {number} n - 1-based index (1 = latest, 2 = second latest, etc.)
+ * @returns {object|null} Post data or null on failure
+ */
+async function fetchLatestPostForSend(n = 1) {
+  const userId = process.env.IG_USER_ID;
+  const accessToken = process.env.IG_ACCESS_TOKEN;
+  const username = process.env.IG_USERNAME;
+
+  if (!userId || !accessToken) {
+    // Fall back to scraping (only returns latest)
+    if (!username) return null;
+    if (n > 1) {
+      throw new Error("Graph API not configured - cannot fetch older posts, only latest available via scraping");
+    }
+    return await fetchLatestPost(username);
+  }
+
+  const limit = Math.min(Math.max(n, 1), 25);
+  const posts = await fetchViaGraphApi(limit);
+
+  if (!posts) return null;
+
+  // If limit was 1, fetchViaGraphApi returns a single object
+  if (limit === 1) return posts;
+
+  // Otherwise it returns an array
+  if (!Array.isArray(posts) || posts.length < n) return null;
+  return posts[n - 1];
 }
 
 // ── Notification formatting ────────────────────────────────────────────
@@ -777,4 +816,7 @@ module.exports = {
   getIgStatus,
   setIgEnabled,
   checkInstagramNow,
+  fetchLatestPostForSend,
+  formatNotification,
+  resolveNotifyTarget,
 };
