@@ -528,16 +528,28 @@ async function handleCommand(sock, msg) {
               ? `\n\u26A0\uFE0F Consecutive errors: ${status.consecutiveErrors}`
               : "";
 
+            // Graph API method info
+            const methodText = status.graphApiConfigured
+              ? "Graph API \u2705"
+              : "Scraping (fallback)";
+            const tokenExpiry = status.tokenExpiresAt
+              ? `\nToken expires: ${status.tokenExpiresAt}`
+              : "";
+            const lastMethodText = status.lastMethod
+              ? `\nLast successful method: ${status.lastMethod}`
+              : "";
+
             await reply(
               sock,
               senderJid,
               msg,
               `\uD83D\uDCF8 *Instagram Monitor Status*\n\n` +
                 `Status: ${enabledText}\n` +
+                `Method: ${methodText}\n` +
                 `Mode: ${status.mode}\n` +
                 `Username: @${status.username}\n` +
                 `Cron: ${status.cronExpression}\n` +
-                `Target: ${status.notifyTarget}\n` +
+                `Target: ${status.notifyTarget}${tokenExpiry}${lastMethodText}\n` +
                 `Last check: ${lastCheck}\n` +
                 `Last notification: ${lastNotif}\n` +
                 `Last post URL: ${lastUrl}${errText}`
@@ -588,7 +600,7 @@ async function handleCommand(sock, msg) {
                 `!ig check \u2014 manual check sekarang\n` +
                 `!ig on \u2014 aktifkan monitoring\n` +
                 `!ig off \u2014 nonaktifkan monitoring\n\n` +
-                `Mode: Polling (direct scraping setiap ${process.env.IG_CHECK_CRON || "*/5 * * * *"})`
+                `Mode: ${process.env.IG_USER_ID && process.env.IG_ACCESS_TOKEN ? "Graph API (primary) + scraping (fallback)" : "Scraping"} setiap ${process.env.IG_CHECK_CRON || "*/5 * * * *"}`
             );
         }
         break;

@@ -1,19 +1,22 @@
 /**
  * instagramMonitor.js
  *
- * Monitors a public Instagram profile for new posts by scraping Instagram's
- * web API endpoints. Uses node-cron for periodic polling with a random delay
- * to avoid exact-timing detection.
+ * Monitors a public Instagram profile for new posts. Uses a layered approach:
  *
- * Primary approach: Instagram web_profile_info API endpoint
- * Fallback: ?__a=1&__d=dis endpoint
- * Last resort: HTML scraping for shortcode patterns
+ * 1. PRIMARY: Instagram Graph API (requires IG_USER_ID + IG_ACCESS_TOKEN)
+ * 2. Fallback: Instagram web_profile_info API endpoint (scraping)
+ * 3. Fallback: ?__a=1&__d=dis endpoint (scraping)
+ * 4. Last resort: HTML scraping for shortcode patterns
  *
- * NOTE: Instagram may change their page structure or API at any time.
- * If scraping breaks, update the parsing logic in fetchLatestPost().
+ * The Graph API is preferred because it is reliable from datacenter IPs
+ * (Fly.io etc.) where direct scraping gets 429 rate-limited.
+ *
+ * Uses node-cron for periodic polling with a random delay to avoid
+ * exact-timing detection on the scraping fallbacks.
  *
  * State: data/igState.json (auto-created if missing)
- * Env vars: IG_MONITOR_ENABLED, IG_USERNAME, IG_CHECK_CRON, IG_NOTIFY_TARGET,
+ * Env vars: IG_MONITOR_ENABLED, IG_USERNAME, IG_USER_ID, IG_ACCESS_TOKEN,
+ *           IG_TOKEN_EXPIRES_AT, IG_CHECK_CRON, IG_NOTIFY_TARGET,
  *           IG_WEBHOOK_SECRET, IG_STATE_PATH
  */
 
@@ -56,6 +59,8 @@ function loadState() {
     lastNotificationSent: null,
     enabled: true,
     consecutiveErrors: 0,
+    lastMethod: null,
+    lastExpiryWarningSent: null,
   };
 }
 
@@ -100,6 +105,158 @@ function getBrowserHeaders() {
     "Sec-Fetch-Site": "none",
     "Sec-Fetch-User": "?1",
   };
+}
+
+// ── Instagram Graph API (PRIMARY method) ───────────────────────────────
+
+/**
+ * Fetch the latest post via Instagram Graph API.
+ * Requires IG_USER_ID and IG_ACCESS_TOKEN env vars.
+ * Returns { shortcode, caption, timestamp, permalink } or null.
+ */
+async function fetchViaGraphApi() {
+  const userId = process.env.IG_USER_ID;
+  const accessToken = process.env.IG_ACCESS_TOKEN;
+
+  if (!userId || !accessToken) return null;
+
+  const url =
+    `https://graph.instagram.com/${userId}/media` +
+    `?fields=id,caption,media_type,permalink,timestamp&limit=1` +
+    `&access_token=${accessToken}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const status = response.status;
+    let errorBody = null;
+    try {
+      errorBody = await response.json();
+    } catch {
+      // body not JSON
+    }
+
+    const errorCode = errorBody?.error?.code;
+    const errorMsg = errorBody?.error?.message || `HTTP ${status}`;
+
+    // 401 or error code 190 = token expired/invalid
+    if (status === 401 || errorCode === 190) {
+      console.error(`📸 instagramMonitor: Graph API token expired/invalid: ${errorMsg}`);
+      await notifyTokenExpired(errorMsg);
+      throw new Error(`graph_api_token_expired: ${errorMsg}`);
+    }
+
+    // 429 = rate limited
+    if (status === 429) {
+      console.warn(`📸 instagramMonitor: Graph API rate limited, will retry next cycle`);
+      throw new Error("graph_api_rate_limited");
+    }
+
+    throw new Error(`graph_api_error: ${errorMsg}`);
+  }
+
+  const data = await response.json();
+  const posts = data?.data;
+
+  if (!posts || posts.length === 0) return null;
+
+  const latest = posts[0];
+  // Extract shortcode from permalink: https://www.instagram.com/p/DYnzUOJEwPJ/ -> DYnzUOJEwPJ
+  const shortcode = extractShortcodeFromPermalink(latest.permalink);
+
+  return {
+    shortcode: shortcode || latest.id,
+    caption: latest.caption || "",
+    timestamp: latest.timestamp ? Math.floor(new Date(latest.timestamp).getTime() / 1000) : null,
+    permalink: latest.permalink,
+    mediaType: latest.media_type,
+    method: "graph_api",
+  };
+}
+
+/**
+ * Extract shortcode from an Instagram permalink URL.
+ * e.g. https://www.instagram.com/p/DYnzUOJEwPJ/ -> DYnzUOJEwPJ
+ *      https://www.instagram.com/reel/ABC123/ -> ABC123
+ */
+function extractShortcodeFromPermalink(permalink) {
+  if (!permalink) return null;
+  const match = permalink.match(/\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
+  return match ? match[2] : null;
+}
+
+/**
+ * Notify owner that the Graph API token has expired or is invalid.
+ */
+async function notifyTokenExpired(errorMsg) {
+  if (!_sock) return;
+  const ownerNum = process.env.OWNER_NUMBER;
+  if (!ownerNum) return;
+
+  const targetJid = `${ownerNum}@s.whatsapp.net`;
+  try {
+    await _sock.sendMessage(targetJid, {
+      text:
+        `\u26A0\uFE0F Instagram Graph API token expired!\n\n` +
+        `Error: ${errorMsg}\n\n` +
+        `Generate a new long-lived token and update IG_ACCESS_TOKEN.\n` +
+        `Bot will fall back to scraping in the meantime.`,
+    });
+  } catch {
+    // Ignore send failure
+  }
+}
+
+/**
+ * Check if the Graph API token is close to expiry and warn the owner.
+ * Uses IG_TOKEN_EXPIRES_AT env var (ISO date string like "2025-07-23").
+ * Only sends a warning once every 24 hours (debounced via state).
+ */
+async function checkTokenExpiry() {
+  if (!_sock) return;
+
+  const expiresAt = process.env.IG_TOKEN_EXPIRES_AT;
+  if (!expiresAt) return;
+
+  const expiryDate = new Date(expiresAt);
+  if (isNaN(expiryDate.getTime())) return;
+
+  const now = new Date();
+  const daysUntilExpiry = (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+  // Only warn if within 7 days of expiry
+  if (daysUntilExpiry > 7) return;
+
+  // Debounce: only send once every 24 hours
+  const state = loadState();
+  if (state.lastExpiryWarningSent) {
+    const lastSent = new Date(state.lastExpiryWarningSent);
+    const hoursSinceLastWarning = (now.getTime() - lastSent.getTime()) / (1000 * 60 * 60);
+    if (hoursSinceLastWarning < 24) return;
+  }
+
+  const ownerNum = process.env.OWNER_NUMBER;
+  if (!ownerNum) return;
+
+  const targetJid = `${ownerNum}@s.whatsapp.net`;
+  const daysText = daysUntilExpiry <= 0
+    ? "sudah expired"
+    : `expires in ${Math.ceil(daysUntilExpiry)} day(s)`;
+
+  try {
+    await _sock.sendMessage(targetJid, {
+      text:
+        `\u26A0\uFE0F Instagram Graph API token ${daysText}!\n\n` +
+        `Expiry date: ${expiresAt}\n` +
+        `Generate a new long-lived token and update IG_ACCESS_TOKEN + IG_TOKEN_EXPIRES_AT.`,
+    });
+
+    // Update debounce timestamp
+    state.lastExpiryWarningSent = now.toISOString();
+    saveState(state);
+  } catch {
+    // Ignore send failure
+  }
 }
 
 // ── Instagram scraping approaches ──────────────────────────────────────
@@ -229,13 +386,31 @@ async function fetchViaHtmlScraping(username) {
 }
 
 /**
- * Try all scraping approaches in order. Returns the latest post info or null.
+ * Try all approaches in order. Returns the latest post info or null.
+ * Order: Graph API (primary) -> web_profile_info -> __a=1 -> HTML scraping
  */
 async function fetchLatestPost(username) {
+  // Approach 0 (PRIMARY): Instagram Graph API
+  if (process.env.IG_USER_ID && process.env.IG_ACCESS_TOKEN) {
+    try {
+      const result = await fetchViaGraphApi();
+      if (result) {
+        result.method = "graph_api";
+        return result;
+      }
+    } catch (err) {
+      console.log(`📸 instagramMonitor: Graph API failed: ${err.message}`);
+      // Fall through to scraping approaches
+    }
+  }
+
   // Approach 1: web_profile_info API
   try {
     const result = await fetchViaWebProfileInfo(username);
-    if (result) return result;
+    if (result) {
+      result.method = "scraping";
+      return result;
+    }
   } catch (err) {
     console.log(`📸 instagramMonitor: web_profile_info failed: ${err.message}`);
   }
@@ -243,7 +418,10 @@ async function fetchLatestPost(username) {
   // Approach 2: __a=1&__d=dis endpoint
   try {
     const result = await fetchViaJsonEndpoint(username);
-    if (result) return result;
+    if (result) {
+      result.method = "scraping";
+      return result;
+    }
   } catch (err) {
     console.log(`📸 instagramMonitor: __a=1 endpoint failed: ${err.message}`);
   }
@@ -251,7 +429,10 @@ async function fetchLatestPost(username) {
   // Approach 3: HTML scraping
   try {
     const result = await fetchViaHtmlScraping(username);
-    if (result) return result;
+    if (result) {
+      result.method = "scraping";
+      return result;
+    }
   } catch (err) {
     console.log(`📸 instagramMonitor: HTML scraping failed: ${err.message}`);
   }
@@ -262,9 +443,12 @@ async function fetchLatestPost(username) {
 // ── Notification formatting ────────────────────────────────────────────
 function formatNotification(postData) {
   const caption = postData.caption ? `"${postData.caption}"` : "";
-  const url = `https://www.instagram.com/p/${postData.shortcode}/`;
+  const url = postData.permalink || `https://www.instagram.com/p/${postData.shortcode}/`;
+  const isReel = postData.mediaType === "VIDEO";
+  const emoji = isReel ? "\uD83C\uDFAC" : "\uD83D\uDCF8"; // 🎬 or 📸
+  const typeText = isReel ? "Reel baru" : "Post baru";
 
-  let text = `\uD83D\uDCF8 Post baru di Instagram!\n`;
+  let text = `${emoji} ${typeText} di Instagram!\n`;
   if (caption) {
     text += `\n${caption}\n`;
   }
@@ -282,10 +466,15 @@ async function pollInstagram() {
   if (!isMonitorEnabled()) return;
 
   const username = process.env.IG_USERNAME;
-  if (!username) {
-    console.warn("📸 instagramMonitor: IG_USERNAME not set, skipping poll");
+  const hasGraphApi = process.env.IG_USER_ID && process.env.IG_ACCESS_TOKEN;
+
+  if (!username && !hasGraphApi) {
+    console.warn("📸 instagramMonitor: neither IG_USERNAME nor Graph API configured, skipping poll");
     return;
   }
+
+  // Check token expiry on each poll
+  await checkTokenExpiry();
 
   const state = loadState();
   state.lastChecked = new Date().toISOString();
@@ -303,8 +492,9 @@ async function pollInstagram() {
       return;
     }
 
-    // Reset error counter on success
+    // Reset error counter on success and track method
     state.consecutiveErrors = 0;
+    state.lastMethod = latestPost.method || null;
 
     // First run: store current post without sending notification (avoid spam on first deploy)
     if (!state.lastShortcode) {
@@ -332,7 +522,7 @@ async function pollInstagram() {
 
       state.lastShortcode = latestPost.shortcode;
       state.lastNotificationSent = new Date().toISOString();
-      state.lastPostUrl = `https://www.instagram.com/p/${latestPost.shortcode}/`;
+      state.lastPostUrl = latestPost.permalink || `https://www.instagram.com/p/${latestPost.shortcode}/`;
       state.lastCaption = latestPost.caption || null;
     }
 
@@ -389,8 +579,10 @@ function startInstagramMonitor(sock) {
   }
 
   const username = process.env.IG_USERNAME;
-  if (!username) {
-    console.log("📸 instagramMonitor: IG_USERNAME not set, monitor inactive");
+  const hasGraphApi = process.env.IG_USER_ID && process.env.IG_ACCESS_TOKEN;
+
+  if (!username && !hasGraphApi) {
+    console.log("📸 instagramMonitor: neither IG_USERNAME nor Graph API (IG_USER_ID+IG_ACCESS_TOKEN) set, monitor inactive");
     return;
   }
 
@@ -410,7 +602,9 @@ function startInstagramMonitor(sock) {
     }, delay);
   });
 
-  console.log(`📸 instagramMonitor: started polling @${username} (cron: ${cronExpr})`);
+  const method = hasGraphApi ? "Graph API (primary)" : "scraping only";
+  const target = username ? `@${username}` : `user ${process.env.IG_USER_ID}`;
+  console.log(`📸 instagramMonitor: started polling ${target} via ${method} (cron: ${cronExpr})`);
 }
 
 // ── Manual trigger ─────────────────────────────────────────────────────
@@ -419,8 +613,10 @@ async function checkInstagramNow(sock) {
   if (activeSock) _sock = activeSock;
 
   const username = process.env.IG_USERNAME;
-  if (!username) {
-    return { success: false, reason: "IG_USERNAME not configured" };
+  const hasGraphApi = process.env.IG_USER_ID && process.env.IG_ACCESS_TOKEN;
+
+  if (!username && !hasGraphApi) {
+    return { success: false, reason: "Neither IG_USERNAME nor Graph API configured" };
   }
 
   try {
@@ -431,6 +627,7 @@ async function checkInstagramNow(sock) {
 
     const state = loadState();
     state.lastChecked = new Date().toISOString();
+    state.lastMethod = latestPost.method || null;
 
     if (!state.lastShortcode) {
       // First check ever: store and don't notify
@@ -440,7 +637,7 @@ async function checkInstagramNow(sock) {
       return {
         success: true,
         newPost: false,
-        message: `First check - stored current post: ${latestPost.shortcode}`,
+        message: `First check - stored current post: ${latestPost.shortcode} (via ${latestPost.method || "unknown"})`,
       };
     }
 
@@ -454,7 +651,7 @@ async function checkInstagramNow(sock) {
 
       state.lastShortcode = latestPost.shortcode;
       state.lastNotificationSent = new Date().toISOString();
-      state.lastPostUrl = `https://www.instagram.com/p/${latestPost.shortcode}/`;
+      state.lastPostUrl = latestPost.permalink || `https://www.instagram.com/p/${latestPost.shortcode}/`;
       state.lastCaption = latestPost.caption || null;
       state.consecutiveErrors = 0;
       saveState(state);
@@ -463,7 +660,7 @@ async function checkInstagramNow(sock) {
         success: true,
         newPost: true,
         shortcode: latestPost.shortcode,
-        message: `New post found and notified: ${latestPost.shortcode}`,
+        message: `New post found and notified: ${latestPost.shortcode} (via ${latestPost.method || "unknown"})`,
       };
     }
 
@@ -472,7 +669,7 @@ async function checkInstagramNow(sock) {
     return {
       success: true,
       newPost: false,
-      message: `No new posts. Latest: ${latestPost.shortcode}`,
+      message: `No new posts. Latest: ${latestPost.shortcode} (via ${latestPost.method || "unknown"})`,
     };
   } catch (err) {
     return { success: false, reason: err.message };
@@ -534,6 +731,19 @@ function getIgStatus() {
   const envEnabled = (process.env.IG_MONITOR_ENABLED || "true").toLowerCase() !== "false";
   const cronExpr = process.env.IG_CHECK_CRON || "*/5 * * * *";
   const username = process.env.IG_USERNAME || "(not set)";
+  const hasGraphApi = Boolean(process.env.IG_USER_ID && process.env.IG_ACCESS_TOKEN);
+  const tokenExpiresAt = process.env.IG_TOKEN_EXPIRES_AT || null;
+
+  // Determine current mode description
+  let mode;
+  if (hasGraphApi) {
+    mode = "Graph API (primary) + scraping (fallback)";
+  } else if (username !== "(not set)") {
+    mode = "scraping (fallback only)";
+  } else {
+    mode = "not configured";
+  }
+
   return {
     enabled: envEnabled && state.enabled,
     envEnabled,
@@ -547,7 +757,10 @@ function getIgStatus() {
     lastCaption: state.lastCaption || null,
     consecutiveErrors: state.consecutiveErrors || 0,
     notifyTarget: process.env.IG_NOTIFY_TARGET || "owner",
-    mode: "polling (direct scraping)",
+    mode,
+    graphApiConfigured: hasGraphApi,
+    tokenExpiresAt,
+    lastMethod: state.lastMethod || null,
   };
 }
 

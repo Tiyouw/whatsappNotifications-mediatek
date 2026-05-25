@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add Instagram Graph API as primary polling method with scraping as fallback, token expiry warning, and updated status display.",
+  "status": "completed",
+  "steps": [
+    "Add Graph API fetch function to instagramMonitor.js as the primary method tried before scraping",
+    "Update fetchLatestPost to try Graph API first when IG_USER_ID and IG_ACCESS_TOKEN are set",
+    "Add token expiry warning with 24h debounce using lastExpiryWarningSent state field",
+    "Update getIgStatus() to show Graph API configuration and last successful method",
+    "Update .env.example with IG_USER_ID, IG_ACCESS_TOKEN, IG_TOKEN_EXPIRES_AT",
+    "Update commandHandler.js !ig status to show Graph API method info and token expiry"
+  ],
+  "acceptance_criteria": [
+    "fetchLatestPost tries Graph API first when IG_USER_ID and IG_ACCESS_TOKEN are set",
+    "Graph API errors (401/190, 429) are handled gracefully with appropriate logging",
+    "Token expiry warning sent to owner once per 24 hours when within 7 days of expiry",
+    "getIgStatus() reports whether Graph API is configured, token expiry date, and last method used",
+    ".env.example contains IG_USER_ID, IG_ACCESS_TOKEN, IG_TOKEN_EXPIRES_AT",
+    "!ig status shows method info and token expiry",
+    "node --check src/instagramMonitor.js passes",
+    "node --check src/commandHandler.js passes"
+  ],
+  "verification": [
+    "Run: node --check src/instagramMonitor.js",
+    "Run: node --check src/commandHandler.js",
+    "Run: node --check index.js"
+  ],
+  "blocked_reason": null,
+  "findings": "All syntax checks pass (node --check). Graph API added as primary method with full error handling. Token expiry warning debounced to once per 24h. Reel vs post distinction added to notifications."
+}
