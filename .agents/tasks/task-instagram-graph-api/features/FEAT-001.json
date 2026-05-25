@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Add Instagram Graph API as primary polling method with scraping as fallback, token expiry warning, and updated status display.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Add Graph API fetch function to instagramMonitor.js as the primary method tried before scraping",
     "Update fetchLatestPost to try Graph API first when IG_USER_ID and IG_ACCESS_TOKEN are set",
@@ -27,5 +27,5 @@
     "Run: node --check index.js"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All syntax checks pass (node --check). Graph API added as primary method with full error handling. Token expiry warning debounced to once per 24h. Reel vs post distinction added to notifications."
 }
