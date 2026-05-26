@@ -14,6 +14,7 @@ const { startScheduler } = require("./src/scheduler");
 const { handleCommand, handleReaction } = require("./src/commandHandler");
 const { startDashboardServer } = require("./src/dashboardServer");
 const { startInstagramMonitor } = require("./src/instagramMonitor");
+const { startFormMonitor } = require("./src/formMonitor");
 const {
   convertImageToSticker,
   convertVideoToSticker,
@@ -52,6 +53,7 @@ const logger = pino({ level: "silent" });
 let sock = null;
 let schedulerStarted = false;
 let igMonitorStarted = false;
+let formMonitorStarted = false;
 let isFirstConnect = true;
 let reconnectCount = 0;
 
@@ -200,6 +202,11 @@ async function connectToWhatsApp() {
       if (!igMonitorStarted) {
         startInstagramMonitor(sock);
         igMonitorStarted = true;
+      }
+
+      if (!formMonitorStarted) {
+        startFormMonitor(sock);
+        formMonitorStarted = true;
       }
 
       if (isFirstConnect) {

@@ -13,6 +13,7 @@ const {
 } = require("./stickerHandler");
 const reactionMap = require("./reactionMap");
 const { getIgStatus, setIgEnabled, checkInstagramNow, fetchLatestPostForSend, formatNotification, resolveNotifyTarget } = require("./instagramMonitor");
+const { getFormStatus, setFormEnabled, checkFormNow } = require("./formMonitor");
 const { now } = require("./time");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -696,6 +697,81 @@ async function handleCommand(sock, msg) {
         break;
       }
 
+      // ── !form ──────────────────────────────────────────────────────────
+      case "form": {
+        const subCmd = args[0]?.toLowerCase() || "";
+
+        switch (subCmd) {
+          case "status": {
+            const status = getFormStatus();
+            const enabledText = status.enabled ? "Aktif \uD83D\uDFE2" : "Nonaktif \uD83D\uDD34";
+            const lastCheck = status.lastChecked
+              ? new Date(status.lastChecked).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
+              : "Belum pernah";
+
+            await reply(
+              sock,
+              senderJid,
+              msg,
+              `\uD83D\uDCCB *Form Monitor Status*\n\n` +
+                `Status: ${enabledText}\n` +
+                `Sheet tab: ${status.sheetTab}\n` +
+                `Cron: ${status.cronExpression}\n` +
+                `Target: ${status.notifyTarget}\n` +
+                `Last check: ${lastCheck}\n` +
+                `Row count: ${status.lastRowCount}`
+            );
+            break;
+          }
+
+          case "check": {
+            await reply(sock, senderJid, msg, `\uD83D\uDD04 Checking form responses...`);
+            const result = await checkFormNow(sock);
+            if (result.success) {
+              await reply(sock, senderJid, msg, `\u2705 ${result.message}`);
+            } else {
+              await reply(sock, senderJid, msg, `\u274C Check failed: ${result.reason}`);
+            }
+            break;
+          }
+
+          case "on": {
+            const ownerNum = process.env.OWNER_NUMBER || "";
+            if (!ownerNum || !fromJid.includes(ownerNum)) {
+              await reply(sock, senderJid, msg, `\u26D4 Hanya owner yang bisa mengubah status monitor.`);
+              break;
+            }
+            setFormEnabled(true);
+            await reply(sock, senderJid, msg, `\u2705 Form monitor diaktifkan.`);
+            break;
+          }
+
+          case "off": {
+            const ownerNum = process.env.OWNER_NUMBER || "";
+            if (!ownerNum || !fromJid.includes(ownerNum)) {
+              await reply(sock, senderJid, msg, `\u26D4 Hanya owner yang bisa mengubah status monitor.`);
+              break;
+            }
+            setFormEnabled(false);
+            await reply(sock, senderJid, msg, `\u2705 Form monitor dinonaktifkan.`);
+            break;
+          }
+
+          default:
+            await reply(
+              sock,
+              senderJid,
+              msg,
+              `\uD83D\uDCCB *Form Monitor Commands*\n\n` +
+                `!form status \u2014 cek status monitoring\n` +
+                `!form check \u2014 manual check sekarang\n` +
+                `!form on \u2014 aktifkan monitoring\n` +
+                `!form off \u2014 nonaktifkan monitoring`
+            );
+        }
+        break;
+      }
+
       // ── !status ────────────────────────────────────────────────────────
       case "status": {
         const reminders = await getReminders();
@@ -886,8 +962,7 @@ async function handleReaction(sock, reaction) {
   // Only care about ✅
   if (emoji !== "✅") return;
 
-  // Who reacted — for groups, the reactor is in reaction.reaction.groupParticipant
-  // or reaction.participant. reaction.key is about the MESSAGE context, not the reactor.
+  // Who reacted — try to get the best JID available (prefer phone over @lid)
   const reactorJid = [
     reaction.reaction?.groupParticipant,
     reaction.participant,
@@ -901,28 +976,21 @@ async function handleReaction(sock, reaction) {
   // The chat where the reaction happened
   const chatJid = reaction.key?.remoteJid || "";
 
-  console.log(`📋 Reaction event: emoji=${emoji}, reactor=${reactorJid}, chat=${chatJid}, fields=[groupParticipant=${reaction.reaction?.groupParticipant || 'N/A'}, participant=${reaction.participant || 'N/A'}, key.participant=${reaction.key?.participant || 'N/A'}]`);
-
-  // Access control — same whitelist as commands
-  if (!isAllowed(reactorJid)) {
-    console.log(`⛔ Reaction ✅ dari non-allowed: ${reactorJid}`);
-    return;
-  }
-
   // The messageId of the ORIGINAL reminder message that was reacted to
   const originalMsgId = reaction.reaction?.key?.id;
   if (!originalMsgId) return;
 
-  // Look up which reminder this message belongs to
+  // Look up which reminder this message belongs to FIRST.
+  // If the message is not in the reactionMap, it is not a tracked reminder - silently ignore.
   const entry = reactionMap.get(originalMsgId);
-  console.log(`📋 Reaction ✅ received: msgId=${originalMsgId?.substring(0, 20)}..., mapped=${!!entry}`);
-  if (!entry) {
-    // Not a tracked reminder message — silently ignore
-    return;
-  }
+  if (!entry) return;
 
+  // The message IS a tracked reminder. Since reactions can only happen on messages
+  // the bot sent (reminder messages) in groups where the bot is active, any group
+  // member who can see and react to the reminder should be able to mark it done.
+  // Skip the isAllowed check for reactions on tracked reminders.
   const { reminderNo } = entry;
-  console.log(`✅ Reaction dari ${reactorJid} → reminder [${reminderNo}]`);
+  console.log(`✅ Reaction dari ${reactorJid} pada reminder [${reminderNo}]`);
 
   // Fetch reminders and find the one matching reminderNo
   const reminders = await getReminders();
@@ -933,6 +1001,7 @@ async function handleReaction(sock, reaction) {
     return;
   }
 
+  // Resolve display name: try NUMBER_NAME_MAP, fallback to JID/LID
   const who = displayNameFromJid(reactorJid);
   const result = await markAsDone(found, who);
 
