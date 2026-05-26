@@ -77,7 +77,6 @@ function startDashboardServer(getSock) {
         if (body.url && !body.source_url && !body.created_at) {
           // Simple share-target format - use smart emoji detection
           const shareUrl = body.url || "";
-          const shareCaption = body.caption || "";
 
           let emoji = "\uD83D\uDCE2"; // 📢
           let title = "Post baru!";
@@ -90,9 +89,6 @@ function startDashboardServer(getSock) {
           }
 
           let notifText = `${emoji} ${title}\n`;
-          if (shareCaption) {
-            notifText += `\n"${shareCaption}"\n`;
-          }
           notifText += `\n\uD83D\uDD17 ${shareUrl}\n`;
           notifText += `\nJangan lupa like ya! \u2764\uFE0F`;
 

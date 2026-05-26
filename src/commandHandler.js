@@ -913,6 +913,7 @@ async function handleReaction(sock, reaction) {
 
   // Look up which reminder this message belongs to
   const entry = reactionMap.get(originalMsgId);
+  console.log(`📋 Reaction ✅ received: msgId=${originalMsgId?.substring(0, 20)}..., mapped=${!!entry}`);
   if (!entry) {
     // Not a tracked reminder message — silently ignore
     return;
