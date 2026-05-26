@@ -886,20 +886,22 @@ async function handleReaction(sock, reaction) {
   // Only care about ✅
   if (emoji !== "✅") return;
 
-  // Who reacted — prefer participant (group), fall back to remoteJid (DM)
-  // Also handle @lid by preferring non-lid candidates
+  // Who reacted — for groups, the reactor is in reaction.reaction.groupParticipant
+  // or reaction.participant. reaction.key is about the MESSAGE context, not the reactor.
   const reactorJid = [
-    reaction.key?.participantPn,
-    reaction.key?.senderPn,
+    reaction.reaction?.groupParticipant,
+    reaction.participant,
     reaction.key?.participant,
-    reaction.key?.remoteJid,
   ].filter(Boolean).find((j) => !j.includes("@lid"))
+    || reaction.reaction?.groupParticipant
+    || reaction.participant
     || reaction.key?.participant
-    || reaction.key?.remoteJid
     || "";
 
   // The chat where the reaction happened
   const chatJid = reaction.key?.remoteJid || "";
+
+  console.log(`📋 Reaction event: emoji=${emoji}, reactor=${reactorJid}, chat=${chatJid}, fields=[groupParticipant=${reaction.reaction?.groupParticipant || 'N/A'}, participant=${reaction.participant || 'N/A'}, key.participant=${reaction.key?.participant || 'N/A'}]`);
 
   // Access control — same whitelist as commands
   if (!isAllowed(reactorJid)) {
