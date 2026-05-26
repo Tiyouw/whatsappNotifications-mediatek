@@ -13,7 +13,7 @@ const {
 } = require("./stickerHandler");
 const reactionMap = require("./reactionMap");
 const { getIgStatus, setIgEnabled, checkInstagramNow, fetchLatestPostForSend, formatNotification, resolveNotifyTarget } = require("./instagramMonitor");
-const { getFormStatus, setFormEnabled, checkFormNow } = require("./formMonitor");
+const { getFormStatus, setFormEnabled } = require("./formMonitor");
 const { now } = require("./time");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -705,9 +705,6 @@ async function handleCommand(sock, msg) {
           case "status": {
             const status = getFormStatus();
             const enabledText = status.enabled ? "Aktif \uD83D\uDFE2" : "Nonaktif \uD83D\uDD34";
-            const lastCheck = status.lastChecked
-              ? new Date(status.lastChecked).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
-              : "Belum pernah";
 
             await reply(
               sock,
@@ -715,23 +712,20 @@ async function handleCommand(sock, msg) {
               msg,
               `\uD83D\uDCCB *Form Monitor Status*\n\n` +
                 `Status: ${enabledText}\n` +
-                `Sheet tab: ${status.sheetTab}\n` +
-                `Cron: ${status.cronExpression}\n` +
-                `Target: ${status.notifyTarget}\n` +
-                `Last check: ${lastCheck}\n` +
-                `Row count: ${status.lastRowCount}`
+                `Mode: webhook\n` +
+                `Webhook URL: /webhook/form\n` +
+                `Target: ${status.notifyTarget}`
             );
             break;
           }
 
           case "check": {
-            await reply(sock, senderJid, msg, `\uD83D\uDD04 Checking form responses...`);
-            const result = await checkFormNow(sock);
-            if (result.success) {
-              await reply(sock, senderJid, msg, `\u2705 ${result.message}`);
-            } else {
-              await reply(sock, senderJid, msg, `\u274C Check failed: ${result.reason}`);
-            }
+            await reply(
+              sock,
+              senderJid,
+              msg,
+              `\uD83D\uDCCB Form monitor menggunakan webhook. Response otomatis terdeteksi saat form disubmit via Google Apps Script.`
+            );
             break;
           }
 
@@ -764,7 +758,7 @@ async function handleCommand(sock, msg) {
               msg,
               `\uD83D\uDCCB *Form Monitor Commands*\n\n` +
                 `!form status \u2014 cek status monitoring\n` +
-                `!form check \u2014 manual check sekarang\n` +
+                `!form check \u2014 info mode webhook\n` +
                 `!form on \u2014 aktifkan monitoring\n` +
                 `!form off \u2014 nonaktifkan monitoring`
             );

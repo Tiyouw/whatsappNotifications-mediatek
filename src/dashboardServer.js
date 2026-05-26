@@ -7,6 +7,7 @@ const { getReminders, markAsDone, addReminder, deleteReminder } = require("./she
 const { triggerManualCheck, sendWeeklySummary } = require("./scheduler");
 const { convertImageToSticker, convertVideoToSticker } = require("./stickerHandler");
 const { handleWebhookPost, getIgStatus } = require("./instagramMonitor");
+const { handleFormWebhook, getFormStatus } = require("./formMonitor");
 const { now } = require("./time");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -110,6 +111,44 @@ function startDashboardServer(getSock) {
           return sendJson(res, 200, { ok: true });
         }
         return sendJson(res, 500, { error: result.reason || "Failed to send notification" });
+      }
+
+      // ── Form Webhook (Google Apps Script) ─────────────────────────────
+      if (url.pathname === "/webhook/form" && req.method === "POST") {
+        const webhookSecret = process.env.FORM_WEBHOOK_SECRET || "";
+        if (!webhookSecret) {
+          return sendJson(res, 503, { error: "FORM_WEBHOOK_SECRET not configured" });
+        }
+
+        // Auth: check Bearer token header or ?token= query param
+        const authHeader = req.headers.authorization || "";
+        const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+        const queryToken = url.searchParams.get("token") || "";
+        const providedToken = bearer || queryToken;
+
+        if (!providedToken || !safeEqual(providedToken, webhookSecret)) {
+          return sendJson(res, 401, { error: "Unauthorized" });
+        }
+
+        // Check if form monitor is enabled
+        const formStatus = getFormStatus();
+        if (!formStatus.enabled) {
+          return sendJson(res, 503, { error: "Form monitor is disabled" });
+        }
+
+        // Check sock availability
+        const sock = getSock();
+        if (!sock) {
+          return sendJson(res, 503, { error: "WhatsApp socket is not connected yet." });
+        }
+
+        // Parse JSON body
+        const body = await readBody(req);
+        const result = await handleFormWebhook(sock, body);
+        if (result.success) {
+          return sendJson(res, 200, { ok: true });
+        }
+        return sendJson(res, result.reason === "Unauthorized" ? 401 : 500, { error: result.reason || "Failed to process webhook" });
       }
 
       if (url.pathname === "/api/dashboard/config" && req.method === "GET") {
