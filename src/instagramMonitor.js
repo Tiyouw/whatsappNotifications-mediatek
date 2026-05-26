@@ -481,16 +481,12 @@ async function fetchLatestPostForSend(n = 1) {
 
 // ── Notification formatting ────────────────────────────────────────────
 function formatNotification(postData) {
-  const caption = postData.caption ? `"${postData.caption}"` : "";
   const url = postData.permalink || `https://www.instagram.com/p/${postData.shortcode}/`;
   const isReel = postData.mediaType === "VIDEO";
   const emoji = isReel ? "\uD83C\uDFAC" : "\uD83D\uDCF8"; // 🎬 or 📸
   const typeText = isReel ? "Reel baru" : "Post baru";
 
   let text = `${emoji} ${typeText} di Instagram!\n`;
-  if (caption) {
-    text += `\n${caption}\n`;
-  }
   text += `\n\uD83D\uDD17 ${url}\n`;
   text += `\nJangan lupa like ya! \u2764\uFE0F`;
   return text;
@@ -734,12 +730,8 @@ async function handleWebhookPost(sock, postData) {
 
   const targetJid = resolveNotifyTarget();
 
-  const caption = postData.caption ? `"${postData.caption}"` : "";
   const url = postData.url || postData.source_url || "";
   let text = `\uD83D\uDCF8 Post baru di Instagram!\n`;
-  if (caption) {
-    text += `\n${caption}\n`;
-  }
   if (url) {
     text += `\n\uD83D\uDD17 ${url}\n`;
   }

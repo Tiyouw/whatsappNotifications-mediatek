@@ -88,15 +88,22 @@ async function getReminders(options = {}) {
   const autoTab = process.env.SHEET_REMINDER_TAB || "Reminders";
   const manualTab = process.env.SHEET_MANUAL_TAB || "MyReminders";
 
+  // ALWAYS read all rows (including inactive) to assign stable globalNo
   const [autoReminders, manualReminders] = await Promise.all([
-    readTab(sheets, autoTab, "auto", options),
-    readTab(sheets, manualTab, "manual", options),
+    readTab(sheets, autoTab, "auto", { includeInactive: true }),
+    readTab(sheets, manualTab, "manual", { includeInactive: true }),
   ]);
 
   const all = [...autoReminders, ...manualReminders];
+  // Assign globalNo based on position in FULL list (stable numbering)
   all.forEach((r, i) => {
     r.globalNo = i + 1;
   });
+
+  // Filter out inactive if not requested
+  if (!options.includeInactive) {
+    return all.filter((r) => r.status !== "done" && r.status !== "skip");
+  }
   return all;
 }
 
