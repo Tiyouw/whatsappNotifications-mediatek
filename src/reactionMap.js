@@ -126,4 +126,37 @@ function remove(messageId) {
   }
 }
 
-module.exports = { set, get, remove }
+/**
+ * Store an alias messageId that points to the same reminder entry as originalId.
+ * WhatsApp/Baileys may use a different internal ID in reaction events than what
+ * sendMessage() returned. This bridges the gap.
+ * @param {string} aliasId    - the alternate message ID (e.g. from messages.upsert)
+ * @param {string} originalId - the ID originally stored via set()
+ */
+function addAlias(aliasId, originalId) {
+  const map = load()
+  const entry = map[originalId]
+  if (entry) {
+    map[aliasId] = { ...entry, aliasOf: originalId, savedAt: new Date().toISOString() }
+    save(map)
+  }
+}
+
+/**
+ * Find an entry by reminder number and target JID (ignoring aliases).
+ * Useful when we know which reminder was sent but the message ID differs.
+ * @param {number} reminderNo
+ * @param {string} targetJid
+ * @returns {{ messageId: string, reminderNo: number, targetJid: string } | null}
+ */
+function findByReminder(reminderNo, targetJid) {
+  const map = load()
+  for (const [messageId, entry] of Object.entries(map)) {
+    if (entry.reminderNo === reminderNo && entry.targetJid === targetJid && !entry.aliasOf) {
+      return { messageId, ...entry }
+    }
+  }
+  return null
+}
+
+module.exports = { set, get, remove, addAlias, findByReminder }

@@ -977,7 +977,10 @@ async function handleReaction(sock, reaction) {
   // Look up which reminder this message belongs to FIRST.
   // If the message is not in the reactionMap, it is not a tracked reminder - silently ignore.
   const entry = reactionMap.get(originalMsgId);
-  if (!entry) return;
+  if (!entry) {
+    console.log(`   ⚠️ Reaction on untracked msgId: ${originalMsgId}`);
+    return;
+  }
 
   // The message IS a tracked reminder. Since reactions can only happen on messages
   // the bot sent (reminder messages) in groups where the bot is active, any group

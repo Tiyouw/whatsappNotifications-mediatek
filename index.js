@@ -23,6 +23,7 @@ const {
   getMediaType,
   getMimeType,
 } = require("./src/stickerHandler");
+const reactionMap = require("./src/reactionMap");
 
 // ── Production-safe runtime path resolution ────────────────────────────
 // AUTH_DIR is the Baileys session folder. Locally it defaults to the
@@ -245,7 +246,24 @@ async function connectToWhatsApp() {
     for (const msg of messages) {
       cacheMessage(msg);
       if (msg.key.remoteJid === "status@broadcast") continue;
-      if (msg.key.fromMe) continue;
+      if (msg.key.fromMe) {
+        // Bot's own messages may arrive via upsert with a different internal ID
+        // than what sendMessage() returned. If this is a tracked reminder,
+        // store the new ID as an alias so reactions can resolve it.
+        const text = msg.message?.conversation
+          || msg.message?.extendedTextMessage?.text
+          || "";
+        const numMatch = text.match(/^\[(\d+)\]/);
+        if (numMatch && msg.key.remoteJid) {
+          const reminderNo = parseInt(numMatch[1], 10);
+          const existing = reactionMap.findByReminder(reminderNo, msg.key.remoteJid);
+          if (existing && existing.messageId !== msg.key.id) {
+            reactionMap.addAlias(msg.key.id, existing.messageId);
+            console.log(`📇 reactionMap: alias ${msg.key.id} → [${reminderNo}]`);
+          }
+        }
+        continue;
+      }
       if (!msg.message) continue;
 
       const fromJid =
@@ -341,7 +359,10 @@ async function connectToWhatsApp() {
   sock.ev.on("messages.reaction", async (reactions) => {
     for (const reaction of reactions) {
       try {
-        console.log(`👁️ Reaction event: emoji="${reaction.reaction?.text || ""}" msgId=${reaction.reaction?.key?.id || "?"}`);
+        const emoji = reaction.reaction?.text || "";
+        const rMsgId = reaction.reaction?.key?.id || "?";
+        const mapped = reactionMap.get(rMsgId);
+        console.log(`👁️ Reaction event: emoji="${emoji}" msgId=${rMsgId} mapped=${mapped ? `[${mapped.reminderNo}]` : "null"}`);
         await handleReaction(sock, reaction);
       } catch (err) {
         console.error("❌ Error handling reaction:", err.message);
