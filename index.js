@@ -99,6 +99,20 @@ function isAllowed(jid) {
   );
 }
 
+// ── In-memory message cache for Baileys getMessage ─────────────────
+const msgCache = new Map();
+const MSG_CACHE_MAX = 1000;
+
+function cacheMessage(msg) {
+  if (!msg?.key?.id) return;
+  msgCache.set(msg.key.id, msg);
+  // Evict oldest if over limit
+  if (msgCache.size > MSG_CACHE_MAX) {
+    const firstKey = msgCache.keys().next().value;
+    msgCache.delete(firstKey);
+  }
+}
+
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
@@ -117,6 +131,10 @@ async function connectToWhatsApp() {
     syncFullHistory: false,
     markOnlineOnConnect: false,
     keepAliveIntervalMs: 30_000,
+    getMessage: async (key) => {
+      const cached = msgCache.get(key.id);
+      return cached?.message || undefined;
+    },
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -225,6 +243,7 @@ async function connectToWhatsApp() {
     if (type !== "notify") return;
 
     for (const msg of messages) {
+      cacheMessage(msg);
       if (msg.key.remoteJid === "status@broadcast") continue;
       if (msg.key.fromMe) continue;
       if (!msg.message) continue;
@@ -322,6 +341,7 @@ async function connectToWhatsApp() {
   sock.ev.on("messages.reaction", async (reactions) => {
     for (const reaction of reactions) {
       try {
+        console.log(`👁️ Reaction event: emoji="${reaction.reaction?.text || ""}" msgId=${reaction.reaction?.key?.id || "?"}`);
         await handleReaction(sock, reaction);
       } catch (err) {
         console.error("❌ Error handling reaction:", err.message);
