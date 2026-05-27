@@ -12,6 +12,7 @@ const {
   getMimeType,
 } = require("./stickerHandler");
 const reactionMap = require("./reactionMap");
+const msgCache = require("./msgCache");
 const { getIgStatus, setIgEnabled, checkInstagramNow, fetchLatestPostForSend, formatNotification, resolveNotifyTarget } = require("./instagramMonitor");
 const { getFormStatus, setFormEnabled } = require("./formMonitor");
 const { now } = require("./time");
@@ -975,11 +976,49 @@ async function handleReaction(sock, reaction) {
   if (!originalMsgId) return;
 
   // Look up which reminder this message belongs to FIRST.
-  // If the message is not in the reactionMap, it is not a tracked reminder - silently ignore.
-  const entry = reactionMap.get(originalMsgId);
+  // If the message is not in the reactionMap, try a content-based fallback:
+  // WhatsApp can deliver reactions with a different internal message ID than
+  // what sendMessage() returned (especially in LID-enabled groups), so the
+  // direct ID lookup will miss. We then check the in-memory msgCache for the
+  // reacted-to message, parse the "[N]" reminder number out of its text, and
+  // resolve the entry by (reminderNo, chatJid). When that succeeds we also
+  // write a back-alias so subsequent reactions on the same ID hit the fast
+  // path.
+  let entry = reactionMap.get(originalMsgId);
   if (!entry) {
-    console.log(`   ⚠️ Reaction on untracked msgId: ${originalMsgId}`);
-    return;
+    // Dump the raw reaction so we can see what fields WhatsApp gave us
+    // (groupParticipant, server-id variants, etc.) when debugging mismatches.
+    try {
+      console.log(`   🔎 Reaction object: ${JSON.stringify(reaction)}`);
+    } catch {
+      // ignore circular refs
+    }
+
+    const cached = msgCache.get(originalMsgId);
+    const cachedText =
+      cached?.message?.conversation ||
+      cached?.message?.extendedTextMessage?.text ||
+      "";
+    const numMatch = cachedText.match(/^\[(\d+)\]/);
+    if (numMatch && chatJid) {
+      const fallbackNo = parseInt(numMatch[1], 10);
+      const found = reactionMap.findByReminder(fallbackNo, chatJid);
+      if (found) {
+        console.log(
+          `   🪄 Reaction matched by content: msgId=${originalMsgId} → [${fallbackNo}] (alias of ${found.messageId})`
+        );
+        reactionMap.addAlias(originalMsgId, found.messageId);
+        entry = { reminderNo: found.reminderNo, targetJid: found.targetJid };
+      }
+    }
+
+    if (!entry) {
+      console.log(
+        `   ⚠️ Reaction on untracked msgId: ${originalMsgId}` +
+          (cached ? " (cached, no [N] in text)" : " (not in msgCache)")
+      );
+      return;
+    }
   }
 
   // The message IS a tracked reminder. Since reactions can only happen on messages

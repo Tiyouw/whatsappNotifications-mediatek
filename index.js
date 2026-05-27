@@ -24,6 +24,7 @@ const {
   getMimeType,
 } = require("./src/stickerHandler");
 const reactionMap = require("./src/reactionMap");
+const msgCache = require("./src/msgCache");
 
 // ── Production-safe runtime path resolution ────────────────────────────
 // AUTH_DIR is the Baileys session folder. Locally it defaults to the
@@ -101,18 +102,8 @@ function isAllowed(jid) {
 }
 
 // ── In-memory message cache for Baileys getMessage ─────────────────
-const msgCache = new Map();
-const MSG_CACHE_MAX = 1000;
-
-function cacheMessage(msg) {
-  if (!msg?.key?.id) return;
-  msgCache.set(msg.key.id, msg);
-  // Evict oldest if over limit
-  if (msgCache.size > MSG_CACHE_MAX) {
-    const firstKey = msgCache.keys().next().value;
-    msgCache.delete(firstKey);
-  }
-}
+// Lives in src/msgCache.js so commandHandler.js can also read it for
+// content-based reaction resolution. Kept here only for legacy refs.
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -244,7 +235,7 @@ async function connectToWhatsApp() {
     if (type !== "notify") return;
 
     for (const msg of messages) {
-      cacheMessage(msg);
+      msgCache.set(msg);
       if (msg.key.remoteJid === "status@broadcast") continue;
       if (msg.key.fromMe) {
         // Bot's own messages may arrive via upsert with a different internal ID
