@@ -32,8 +32,16 @@ dashboard/
 .github/
 .kiro/
 .agents/
+.codex/
 .vscode/
 .idea/
+
+# ── Dev-only artifacts ────────────────────────────────────────
+# graphify-out is a generated dependency-graph snapshot used during
+# development; raw/ holds historical context dumps for AI assistants.
+# Neither is needed at runtime.
+graphify-out/
+raw/
 
 # ── Platform configs not needed at runtime ────────────────────
 .replit
