@@ -941,12 +941,25 @@ async function handleSetDamn(sock, jid, msg) {
  *   5. Mark that reminder as done in Google Sheets
  *   6. Send a confirmation message back to the chat
  *
- * Baileys reaction event shape:
+ * Baileys (6.7.x) reaction event shape — important: the OUTER `key`
+ * identifies the ORIGINAL message that was reacted to (this is the ID we
+ * stored via reactionMap.set when sending the reminder). The INNER
+ * `reaction.key` identifies the reaction stanza itself, with a fresh ID
+ * generated for every reaction. Looking up reactionMap by the inner ID
+ * will always miss — that was the original bug.
+ *
  * {
- *   key: { remoteJid, id, participant? },   ← the REACTION message itself
+ *   key: {                                  ← ORIGINAL message reacted to
+ *     remoteJid, id,                        ← `id` matches reminder msgId
+ *     participant?: <author's @lid>         ← bot itself, for our reminders
+ *   },
  *   reaction: {
- *     key: { remoteJid, id, participant? }, ← the ORIGINAL message being reacted to
- *     text: "✅"                            ← the emoji
+ *     key: {                                ← the reaction stanza
+ *       remoteJid, id,                      ← fresh, never in our map
+ *       participant?: <reactor's @lid>,
+ *       participantPn?: <reactor's real phone JID>
+ *     },
+ *     text: "✅"
  *   }
  * }
  */
@@ -957,22 +970,19 @@ async function handleReaction(sock, reaction) {
   // Only care about ✅
   if (emoji !== "✅") return;
 
-  // Who reacted — try to get the best JID available (prefer phone over @lid)
-  const reactorJid = [
-    reaction.reaction?.groupParticipant,
-    reaction.participant,
-    reaction.key?.participant,
-  ].filter(Boolean).find((j) => !j.includes("@lid"))
-    || reaction.reaction?.groupParticipant
-    || reaction.participant
-    || reaction.key?.participant
-    || "";
+  // Who reacted — participantPn is the real phone JID, participant is the @lid.
+  // Prefer the phone form so NUMBER_NAME_MAP / displayNameFromJid resolve cleanly.
+  const reactorJid =
+    reaction.reaction?.key?.participantPn ||
+    reaction.reaction?.key?.participant ||
+    "";
 
-  // The chat where the reaction happened
+  // The chat where the reaction happened (same on both keys; the outer is canonical)
   const chatJid = reaction.key?.remoteJid || "";
 
-  // The messageId of the ORIGINAL reminder message that was reacted to
-  const originalMsgId = reaction.reaction?.key?.id;
+  // The messageId of the ORIGINAL reminder message that was reacted to.
+  // This is the OUTER key.id — what reactionMap was keyed on at send time.
+  const originalMsgId = reaction.key?.id;
   if (!originalMsgId) return;
 
   // Look up which reminder this message belongs to FIRST.

@@ -351,9 +351,12 @@ async function connectToWhatsApp() {
     for (const reaction of reactions) {
       try {
         const emoji = reaction.reaction?.text || "";
-        const rMsgId = reaction.reaction?.key?.id || "?";
-        const mapped = reactionMap.get(rMsgId);
-        console.log(`👁️ Reaction event: emoji="${emoji}" msgId=${rMsgId} mapped=${mapped ? `[${mapped.reminderNo}]` : "null"}`);
+        // OUTER key.id = the original reacted-to message; this is what we
+        // keyed reactionMap on. INNER reaction.key.id is the reaction
+        // stanza's own ID and is never in our map.
+        const origMsgId = reaction.key?.id || "?";
+        const mapped = reactionMap.get(origMsgId);
+        console.log(`👁️ Reaction event: emoji="${emoji}" origMsgId=${origMsgId} mapped=${mapped ? `[${mapped.reminderNo}]` : "null"}`);
         await handleReaction(sock, reaction);
       } catch (err) {
         console.error("❌ Error handling reaction:", err.message);
